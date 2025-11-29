@@ -110,14 +110,16 @@ class DisplayManager:
         return image
 
     def draw_menu(self, menu_items: List[Dict[str, str]],
-                  selected_index: int, title: str = "Menu") -> Image.Image:
+                  selected_index: int, title: str = "Menu",
+                  pet_sprite: Optional[Image.Image] = None) -> Image.Image:
         """
-        Draw a menu screen
+        Draw a menu screen with pet sprite on left
 
         Args:
             menu_items: List of menu items with 'label' and 'action'
             selected_index: Index of currently selected item
             title: Menu title
+            pet_sprite: Optional pet sprite to display on left side
 
         Returns:
             PIL Image of the menu screen
@@ -126,13 +128,26 @@ class DisplayManager:
         image = Image.new('1', (self.width, self.height), 1)
         draw = ImageDraw.Draw(image)
 
-        # Draw title
-        draw.text((5, 2), title, fill=0, font=self.font_medium)
-        draw.line([(0, 15), (self.width, 15)], fill=0, width=1)
+        # Draw header with title
+        draw.rectangle([(0, 0), (self.width, config.HEADER_HEIGHT)], fill=0)
+        draw.text((2, 1), title, fill=1, font=self.font_small)
 
-        # Draw menu items
-        y_offset = 20
+        # Draw pet sprite on left side (same position as home screen)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+        else:
+            # Draw placeholder box if no sprite
+            draw.rectangle([
+                (config.PET_SPRITE_X, config.PET_SPRITE_Y),
+                (config.PET_SPRITE_X + config.PET_SPRITE_WIDTH,
+                 config.PET_SPRITE_Y + config.PET_SPRITE_HEIGHT)
+            ], outline=0)
+
+        # Draw menu items on right side (status area)
+        x = config.STATUS_AREA_X + 5
+        y_offset = config.STATUS_AREA_Y + 5
         item_height = 15
+        menu_width = config.STATUS_AREA_WIDTH - 10
 
         for i, item in enumerate(menu_items):
             # Check if this item is visible
@@ -142,15 +157,15 @@ class DisplayManager:
             # Highlight selected item
             if i == selected_index:
                 draw.rectangle([
-                    (2, y_offset),
-                    (self.width - 2, y_offset + item_height - 2)
+                    (x, y_offset),
+                    (x + menu_width, y_offset + item_height - 2)
                 ], fill=0)
                 # Draw text in white (inverted)
-                draw.text((5, y_offset + 2), item['label'],
+                draw.text((x + 3, y_offset + 2), item['label'],
                          fill=1, font=self.font_small)
             else:
                 # Draw normal text
-                draw.text((5, y_offset + 2), item['label'],
+                draw.text((x + 3, y_offset + 2), item['label'],
                          fill=0, font=self.font_small)
 
             y_offset += item_height
@@ -275,7 +290,7 @@ class DisplayManager:
         y = config.STATUS_AREA_Y + 10
         bar_width = config.STATUS_AREA_WIDTH - 15
         bar_height = 12
-        spacing = 20
+        spacing = 35  # Increased spacing to prevent overlap
 
         # Hunger bar
         self._draw_stat_bar(draw, x, y, bar_width, bar_height,

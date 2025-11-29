@@ -330,12 +330,22 @@ class NotAGotchiApp:
         )
 
     def _render_menu_screen(self):
-        """Render menu screen"""
+        """Render menu screen with pet sprite"""
+        if self.pet is None:
+            pet_sprite = None
+        else:
+            # Get pet sprite (same as home screen)
+            sprite_name = self.pet.get_current_sprite()
+            pet_sprite = self.sprite_manager.get_sprite_by_name(sprite_name)
+            if pet_sprite is None:
+                pet_sprite = self.sprite_manager.create_placeholder_sprite()
+
         menu_state = self.screen_manager.get_menu_state()
         return self.display.draw_menu(
             menu_state['items'],
             menu_state['selected_index'],
-            "Care Menu"
+            "Care Menu",
+            pet_sprite
         )
 
     def _render_name_entry_screen(self):
