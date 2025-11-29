@@ -205,3 +205,19 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Not-A-Gotchi specific
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# Runtime Data
+data/pet_state.json
+data/*.csv
+
+# System Files
+.DS_Store
+Thumbs.db

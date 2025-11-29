@@ -1,0 +1,25 @@
+[Unit]
+Description=Not-A-Gotchi Virtual Pet
+Documentation=https://github.com/yourusername/not-a-gotchi
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/not-a-gotchi
+ExecStart=/usr/bin/python3 /home/pi/not-a-gotchi/src/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables (if needed)
+Environment="PYTHONUNBUFFERED=1"
+
+# Graceful shutdown
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

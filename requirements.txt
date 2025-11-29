@@ -1,0 +1,12 @@
+# Not-A-Gotchi Dependencies
+# Python 3.7+ required
+
+# GPIO and Hardware
+RPi.GPIO>=0.7.1
+gpiozero>=1.6.2
+spidev>=3.5
+
+# Image Processing and Display
+Pillow>=9.4.0
+
+# Note: sqlite3 is included in Python standard library (no separate install needed)
