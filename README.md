@@ -55,10 +55,13 @@ cd not-a-gotchi
 
 That's it! The script will:
 - ✅ Auto-detect your username and installation paths
+- ✅ Install system dependencies (python3-dev, swig, build-essential)
+- ✅ Optionally install lgpio (recommended for modern GPIO backend)
 - ✅ Create a Python virtual environment (`venv/`)
 - ✅ Install Python dependencies in the venv
 - ✅ Generate placeholder sprites
 - ✅ Create data directory
+- ✅ Add user to gpio group for GPIO access
 - ✅ Generate and install systemd service (with venv paths)
 - ✅ Enable auto-start on boot
 - ✅ Optionally start the service immediately
@@ -341,17 +344,18 @@ newgrp gpio
 groups | grep gpio
 ```
 
-**Option 2: Install lgpio backend**
+**Option 2: Install lgpio backend (recommended)**
 ```bash
-# Activate venv
-source venv/bin/activate
+# Install as system package (preferred method)
+sudo apt install python3-lgpio
 
-# Install lgpio
-pip install rpi-lgpio
-
+# gpiozero will automatically detect and use it
 # Test
-python src/main.py --simulation
+cd src
+python main.py --simulation
 ```
+
+**Note:** lgpio is the modern GPIO library for Raspberry Pi. gpiozero automatically uses it if installed, otherwise falls back to RPi.GPIO (which also works fine).
 
 **Option 3: Stop conflicting services**
 ```bash

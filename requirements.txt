@@ -4,8 +4,11 @@
 # GPIO and Hardware
 RPi.GPIO>=0.7.1
 gpiozero>=1.6.2
-rpi-lgpio>=0.4  # Recommended GPIO backend for newer Pi systems
 spidev>=3.5
+
+# Note: lgpio is optional but recommended for newer Pi systems
+# Install via: sudo apt install python3-lgpio
+# gpiozero will automatically use it if available, otherwise falls back to RPi.GPIO
 
 # Image Processing and Display
 Pillow>=9.4.0

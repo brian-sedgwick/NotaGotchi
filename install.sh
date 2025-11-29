@@ -176,6 +176,27 @@ else
     print_info "  -> Interface Options -> SPI -> Enable"
 fi
 
+# Optional: Install lgpio (recommended for newer Pi systems)
+print_info "Checking for lgpio (optional, recommended)..."
+if dpkg -l | grep -q python3-lgpio; then
+    print_success "python3-lgpio is installed"
+else
+    print_warning "python3-lgpio not found (gpiozero will use RPi.GPIO fallback)"
+    read -p "Install python3-lgpio from system packages? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Installing python3-lgpio..."
+        if sudo apt-get install -y python3-lgpio; then
+            print_success "python3-lgpio installed"
+        else
+            print_warning "Failed to install python3-lgpio"
+            print_info "Continuing with RPi.GPIO fallback (this is fine)"
+        fi
+    else
+        print_info "Skipping lgpio installation (RPi.GPIO will be used)"
+    fi
+fi
+
 # Check GPIO permissions
 print_info "Checking GPIO permissions..."
 if groups $CURRENT_USER | grep -q '\bgpio\b'; then
