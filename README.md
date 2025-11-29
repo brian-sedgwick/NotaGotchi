@@ -41,7 +41,7 @@ A digital pet for Raspberry Pi Zero 2W with e-ink display - a modern take on the
 
 ## Quick Start
 
-### Installation on Raspberry Pi
+### Automated Installation (Recommended)
 
 ```bash
 # 1. Clone the repository
@@ -49,29 +49,72 @@ cd ~
 git clone <your-repo-url> not-a-gotchi
 cd not-a-gotchi
 
-# 2. Install Python dependencies
-pip3 install -r requirements.txt
+# 2. Run the installation script
+./install.sh
+```
 
-# 3. Enable SPI for e-ink display
+That's it! The script will:
+- ✅ Auto-detect your username and installation paths
+- ✅ Create a Python virtual environment (`venv/`)
+- ✅ Install Python dependencies in the venv
+- ✅ Generate placeholder sprites
+- ✅ Create data directory
+- ✅ Generate and install systemd service (with venv paths)
+- ✅ Enable auto-start on boot
+- ✅ Optionally start the service immediately
+
+If you need to enable SPI for the e-ink display:
+```bash
+sudo raspi-config
+# → Interface Options → SPI → Enable
+```
+
+### Manual Installation (Advanced)
+
+If you prefer manual installation or need to troubleshoot:
+
+```bash
+# 1. Create Python virtual environment
+python3 -m venv venv
+
+# 2. Activate virtual environment
+source venv/bin/activate
+
+# 3. Install Python dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# 4. Enable SPI for e-ink display
 sudo raspi-config
 # → Interface Options → SPI → Enable
 
-# 4. Generate placeholder sprites
+# 5. Generate placeholder sprites
 cd src
-python3 create_placeholder_sprites.py
+python create_placeholder_sprites.py
 cd ..
 
-# 5. Test the application
-python3 src/main.py --simulation
+# 6. Test the application
+python src/main.py --simulation
 
-# 6. Install as system service (auto-start on boot)
+# 7. Edit service file with your username and paths
+nano not-a-gotchi.service
+# Change User=pi to your username
+# Change paths to match your installation
+# Change ExecStart to use venv/bin/python3
+
+# 8. Install as system service
 sudo cp not-a-gotchi.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable not-a-gotchi.service
 sudo systemctl start not-a-gotchi.service
 
-# 7. Check status
+# 9. Check status
 sudo systemctl status not-a-gotchi
+```
+
+**Note:** When manually installing, make sure the systemd service uses the venv Python:
+```
+ExecStart=/full/path/to/not-a-gotchi/venv/bin/python3 /full/path/to/not-a-gotchi/src/main.py
 ```
 
 ### Updating the Application
@@ -84,6 +127,19 @@ git pull
 # Restart the service
 sudo systemctl restart not-a-gotchi
 ```
+
+### Uninstalling
+
+```bash
+cd ~/not-a-gotchi
+./uninstall.sh
+```
+
+The uninstall script will:
+- Stop and disable the service
+- Remove the systemd service file
+- Optionally backup and remove pet data
+- Optionally remove source code
 
 ## Usage
 
