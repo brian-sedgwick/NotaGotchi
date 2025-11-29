@@ -130,6 +130,31 @@ else
     print_info "  -> Interface Options -> SPI -> Enable"
 fi
 
+# Check GPIO permissions
+print_info "Checking GPIO permissions..."
+if groups $CURRENT_USER | grep -q '\bgpio\b'; then
+    print_success "User '$CURRENT_USER' is in gpio group"
+else
+    print_warning "User '$CURRENT_USER' is NOT in gpio group"
+    print_info "Adding user to gpio group for GPIO access..."
+    if sudo usermod -a -G gpio $CURRENT_USER; then
+        print_success "User added to gpio group"
+        print_warning "You will need to log out and back in for this to take effect"
+        print_info "Or run: newgrp gpio"
+    else
+        print_warning "Failed to add user to gpio group"
+        print_info "You may need to run the application with sudo"
+    fi
+fi
+
+# Check if any not-a-gotchi service is running
+if systemctl is-active --quiet ${SERVICE_NAME}.service 2>/dev/null; then
+    print_warning "Old ${SERVICE_NAME} service is running"
+    print_info "Stopping old service to free GPIO pins..."
+    sudo systemctl stop ${SERVICE_NAME}.service
+    print_success "Old service stopped"
+fi
+
 # Generate systemd service file
 print_info "Generating systemd service file..."
 

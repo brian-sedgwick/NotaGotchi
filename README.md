@@ -321,6 +321,52 @@ python3 epd2in13_V4_test.py
 python3 tests/test_encoder.py
 ```
 
+### GPIO Permission Errors
+
+If you see `RuntimeError: Failed to add edge detection` or similar GPIO errors:
+
+**Option 1: Add user to gpio group (recommended)**
+```bash
+# Add your user to gpio group
+sudo usermod -a -G gpio $USER
+
+# Log out and back in, or run:
+newgrp gpio
+
+# Verify group membership
+groups | grep gpio
+```
+
+**Option 2: Install lgpio backend**
+```bash
+# Activate venv
+source venv/bin/activate
+
+# Install lgpio
+pip install rpi-lgpio
+
+# Test
+python src/main.py --simulation
+```
+
+**Option 3: Stop conflicting services**
+```bash
+# Check if service is already running
+sudo systemctl status not-a-gotchi
+
+# Stop if running
+sudo systemctl stop not-a-gotchi
+
+# Try manual start again
+cd src
+python main.py
+```
+
+**Option 4: Run with sudo (last resort)**
+```bash
+sudo venv/bin/python src/main.py
+```
+
 ### Service Won't Start
 
 ```bash

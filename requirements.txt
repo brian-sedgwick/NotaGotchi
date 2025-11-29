@@ -4,6 +4,7 @@
 # GPIO and Hardware
 RPi.GPIO>=0.7.1
 gpiozero>=1.6.2
+rpi-lgpio>=0.4  # Recommended GPIO backend for newer Pi systems
 spidev>=3.5
 
 # Image Processing and Display
