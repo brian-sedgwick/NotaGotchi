@@ -59,7 +59,7 @@ HEADER_HEIGHT = 11     # Top header for time/battery
 
 # Display Refresh Settings
 PARTIAL_REFRESH_INTERVAL = 1    # Seconds between partial refreshes
-FULL_REFRESH_EVERY_N = 10       # Full refresh every N partial refreshes
+FULL_REFRESH_MIN_INTERVAL = 30  # Minimum seconds between full refreshes (on user action)
 DISPLAY_UPDATE_RATE = 1.0       # Seconds between display updates
 
 # ============================================================================

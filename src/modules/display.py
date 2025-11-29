@@ -39,7 +39,7 @@ class DisplayManager:
         self.epd = None
         self.width = config.DISPLAY_WIDTH
         self.height = config.DISPLAY_HEIGHT
-        self.partial_refresh_count = 0
+        self.last_full_refresh_time = 0  # Track last full refresh timestamp
 
         # Try to load default font
         try:
@@ -314,7 +314,7 @@ class DisplayManager:
 
         Args:
             image: PIL Image to display
-            full_refresh: Force full refresh (clears ghosting)
+            full_refresh: Request full refresh (only honored if enough time has passed)
         """
         if self.simulation_mode:
             # In simulation mode, just save the image
@@ -326,15 +326,26 @@ class DisplayManager:
             buffer = self.epd.getbuffer(image)
 
             # Determine refresh type
-            if full_refresh or self.partial_refresh_count >= config.FULL_REFRESH_EVERY_N:
-                print("Performing full refresh...")
-                self.epd.init()
-                self.epd.display(buffer)
-                self.partial_refresh_count = 0
+            if full_refresh:
+                # Check if enough time has passed since last full refresh
+                current_time = time.time()
+                time_since_last_full = current_time - self.last_full_refresh_time
+
+                if time_since_last_full >= config.FULL_REFRESH_MIN_INTERVAL:
+                    # Do full refresh
+                    print("Performing full refresh...")
+                    self.epd.init()
+                    self.epd.display(buffer)
+                    self.last_full_refresh_time = current_time
+                else:
+                    # Not enough time has passed, do partial instead
+                    time_remaining = config.FULL_REFRESH_MIN_INTERVAL - time_since_last_full
+                    print(f"Full refresh requested but only {time_since_last_full:.1f}s elapsed (need {config.FULL_REFRESH_MIN_INTERVAL}s, {time_remaining:.1f}s remaining), doing partial refresh...")
+                    self.epd.displayPartial(buffer)
             else:
+                # Normal partial refresh
                 print("Performing partial refresh...")
                 self.epd.displayPartial(buffer)
-                self.partial_refresh_count += 1
 
         except Exception as e:
             print(f"Error updating display: {e}")
@@ -345,7 +356,7 @@ class DisplayManager:
             try:
                 self.epd.init()
                 self.epd.Clear()
-                self.partial_refresh_count = 0
+                self.last_full_refresh_time = time.time()  # Reset timestamp after full clear
             except Exception as e:
                 print(f"Error clearing display: {e}")
 

@@ -50,6 +50,7 @@ class NotAGotchiApp:
         self.last_update_time = time.time()
         self.last_save_time = time.time()
         self.last_display_time = time.time()
+        self.action_occurred = False  # Track user actions for full refresh
 
         # Register action callbacks
         self._register_actions()
@@ -120,6 +121,7 @@ class NotAGotchiApp:
         changes = self.pet.feed()
         self.db.log_event(self.pet.id, "feed", stat_changes=changes)
         self._save_pet()
+        self.action_occurred = True  # Trigger full refresh
         self.screen_manager.go_home()
         print(f"Fed {self.pet.name}")
 
@@ -131,6 +133,7 @@ class NotAGotchiApp:
         changes = self.pet.play()
         self.db.log_event(self.pet.id, "play", stat_changes=changes)
         self._save_pet()
+        self.action_occurred = True  # Trigger full refresh
         self.screen_manager.go_home()
         print(f"Played with {self.pet.name}")
 
@@ -142,6 +145,7 @@ class NotAGotchiApp:
         changes = self.pet.clean()
         self.db.log_event(self.pet.id, "clean", stat_changes=changes)
         self._save_pet()
+        self.action_occurred = True  # Trigger full refresh
         self.screen_manager.go_home()
         print(f"Cleaned {self.pet.name}")
 
@@ -153,6 +157,7 @@ class NotAGotchiApp:
         changes = self.pet.sleep()
         self.db.log_event(self.pet.id, "sleep", stat_changes=changes)
         self._save_pet()
+        self.action_occurred = True  # Trigger full refresh
         self.screen_manager.go_home()
         print(f"{self.pet.name} is sleeping")
 
@@ -166,6 +171,7 @@ class NotAGotchiApp:
             self.pet.reset()
             self.db.log_event(self.pet.id, "reset", notes="Pet was reset")
             self._save_pet()
+            self.action_occurred = True  # Trigger full refresh
             # Start name entry for new pet
             self.screen_manager.start_name_entry()
 
@@ -261,6 +267,7 @@ class NotAGotchiApp:
             self._save_pet()
             print(f"Renamed pet to: {name}")
 
+        self.action_occurred = True  # Trigger full refresh
         self.screen_manager.go_home()
 
     def _render_display(self):
@@ -289,8 +296,12 @@ class NotAGotchiApp:
         else:
             return  # Unknown screen
 
-        # Update display
-        self.display.update_display(image)
+        # Update display (with full refresh if user action occurred)
+        self.display.update_display(image, full_refresh=self.action_occurred)
+
+        # Reset action flag after display update
+        if self.action_occurred:
+            self.action_occurred = False
 
     def _render_home_screen(self):
         """Render home/status screen"""
