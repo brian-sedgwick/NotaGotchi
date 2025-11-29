@@ -63,6 +63,52 @@ if [ ! -f "src/main.py" ]; then
     exit 1
 fi
 
+# Check and install system dependencies
+print_info "Checking system dependencies..."
+MISSING_DEPS=()
+
+# Check for python3-venv
+if ! dpkg -l | grep -q python3-venv; then
+    MISSING_DEPS+=("python3-venv")
+fi
+
+# Check for python3-dev (needed for lgpio compilation)
+if ! dpkg -l | grep -q python3-dev; then
+    MISSING_DEPS+=("python3-dev")
+fi
+
+# Check for swig (needed for lgpio compilation)
+if ! command -v swig &> /dev/null; then
+    MISSING_DEPS+=("swig")
+fi
+
+# Check for build-essential (gcc, etc.)
+if ! dpkg -l | grep -q build-essential; then
+    MISSING_DEPS+=("build-essential")
+fi
+
+if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+    print_warning "Missing system dependencies: ${MISSING_DEPS[*]}"
+    read -p "Install missing dependencies? (requires sudo) (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Installing system dependencies..."
+        if sudo apt-get update && sudo apt-get install -y "${MISSING_DEPS[@]}"; then
+            print_success "System dependencies installed"
+        else
+            print_error "Failed to install system dependencies"
+            print_warning "You may need to install them manually:"
+            print_warning "  sudo apt-get install ${MISSING_DEPS[*]}"
+            exit 1
+        fi
+    else
+        print_warning "Skipping system dependencies"
+        print_warning "Installation may fail without them"
+    fi
+else
+    print_success "All system dependencies present"
+fi
+
 # Create Python virtual environment
 print_info "Setting up Python virtual environment..."
 if [ ! -d "$VENV_DIR" ]; then

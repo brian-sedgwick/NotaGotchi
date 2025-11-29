@@ -74,6 +74,10 @@ sudo raspi-config
 If you prefer manual installation or need to troubleshoot:
 
 ```bash
+# 0. Install system dependencies (if needed)
+sudo apt-get update
+sudo apt-get install -y python3-venv python3-dev swig build-essential
+
 # 1. Create Python virtual environment
 python3 -m venv venv
 
