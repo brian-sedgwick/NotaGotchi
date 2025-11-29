@@ -358,8 +358,7 @@ class DisplayManager:
                     print(f"Full refresh requested but only {time_since_last_full:.1f}s elapsed (need {config.FULL_REFRESH_MIN_INTERVAL}s, {time_remaining:.1f}s remaining), doing partial refresh...")
                     self.epd.displayPartial(buffer)
             else:
-                # Normal partial refresh
-                print("Performing partial refresh...")
+                # Normal partial refresh (no logging to reduce console noise)
                 self.epd.displayPartial(buffer)
 
         except Exception as e:

@@ -51,6 +51,7 @@ class NotAGotchiApp:
         self.last_save_time = time.time()
         self.last_display_time = time.time()
         self.action_occurred = False  # Track user actions for full refresh
+        self.first_render = True  # Force full refresh on first render
 
         # Register action callbacks
         self._register_actions()
@@ -296,12 +297,15 @@ class NotAGotchiApp:
         else:
             return  # Unknown screen
 
-        # Update display (with full refresh if user action occurred)
-        self.display.update_display(image, full_refresh=self.action_occurred)
+        # Update display (with full refresh if user action occurred or first render)
+        force_full = self.action_occurred or self.first_render
+        self.display.update_display(image, full_refresh=force_full)
 
-        # Reset action flag after display update
+        # Reset flags after display update
         if self.action_occurred:
             self.action_occurred = False
+        if self.first_render:
+            self.first_render = False
 
     def _render_home_screen(self):
         """Render home/status screen"""
