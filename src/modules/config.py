@@ -46,21 +46,21 @@ DISPLAY_ROTATION = 90  # Degrees
 
 # Display Layout (Landscape: 250×122)
 PET_SPRITE_X = 0       # Left side
-PET_SPRITE_Y = 11      # Offset from top (header height)
+PET_SPRITE_Y = 14      # Offset from top (header height)
 PET_SPRITE_WIDTH = 100
 PET_SPRITE_HEIGHT = 100
 
 STATUS_AREA_X = 100    # Right side
-STATUS_AREA_Y = 11     # Offset from top (header height)
+STATUS_AREA_Y = 14     # Offset from top (header height)
 STATUS_AREA_WIDTH = 150
-STATUS_AREA_HEIGHT = 111  # 122 - 11 (header)
+STATUS_AREA_HEIGHT = 108  # 122 - 14 (header)
 
-HEADER_HEIGHT = 11     # Top header for time/battery
+HEADER_HEIGHT = 14     # Top header for time/battery
 
 # Display Refresh Settings
 PARTIAL_REFRESH_INTERVAL = 1    # Seconds between partial refreshes
 FULL_REFRESH_MIN_INTERVAL = 30  # Minimum seconds between full refreshes (on user action)
-DISPLAY_UPDATE_RATE = 10.0      # Seconds between display updates
+DISPLAY_UPDATE_RATE = 1.0       # Seconds between display updates
 
 # ============================================================================
 # SPRITE CONFIGURATION
