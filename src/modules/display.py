@@ -78,7 +78,7 @@ class DisplayManager:
         Args:
             pet_sprite: PIL Image of pet sprite (100×100)
             pet_name: Pet's name
-            stats: Dict with 'hunger', 'happiness', 'health'
+            stats: Dict with 'hunger', 'happiness', 'health', 'energy'
             age_display: Formatted age string (e.g., "5h" or "2d")
             quote: Optional quote to display over pet sprite
 
@@ -371,10 +371,10 @@ class DisplayManager:
     def _draw_stats_bars(self, draw: ImageDraw.Draw, stats: Dict[str, int]):
         """Draw stat bars on the right side"""
         x = config.STATUS_AREA_X + 5
-        y = config.STATUS_AREA_Y + 18  # Increased padding to center vertically
+        y = config.STATUS_AREA_Y + 5  # Reduced padding to fit 4 bars
         bar_width = config.STATUS_AREA_WIDTH - 35  # Leave room for value text on right
-        bar_height = 12
-        spacing = 35  # Increased spacing to prevent overlap
+        bar_height = 10  # Slightly reduced height
+        spacing = 27  # Reduced spacing to fit 4 bars
 
         # Fullness bar (inverted hunger - full bar = well fed, empty = hungry)
         fullness = 100 - stats['hunger']
@@ -388,6 +388,10 @@ class DisplayManager:
         # Health bar
         self._draw_stat_bar(draw, x, y + spacing * 2, bar_width, bar_height,
                           "Health", stats['health'])
+
+        # Energy bar
+        self._draw_stat_bar(draw, x, y + spacing * 3, bar_width, bar_height,
+                          "Energy", stats['energy'])
 
     def _draw_stat_bar(self, draw: ImageDraw.Draw, x: int, y: int,
                        width: int, height: int, label: str, value: int):

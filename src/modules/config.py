@@ -107,10 +107,12 @@ STAT_MAX = 100
 INITIAL_HUNGER = 50
 INITIAL_HAPPINESS = 75
 INITIAL_HEALTH = 100
+INITIAL_ENERGY = 100
 
 # Stat Degradation Rates (per minute)
 HUNGER_INCREASE_RATE = 1.0     # +1 hunger per minute
 HAPPINESS_DECREASE_RATE = 0.5  # -0.5 happiness per minute
+ENERGY_DECREASE_RATE = 0.3     # -0.3 energy per minute (base rate)
 
 # Health Regeneration/Degradation
 HEALTH_REGEN_THRESHOLD_HUNGER = 50    # Hunger must be < this to regen
@@ -120,6 +122,11 @@ HEALTH_REGEN_RATE = 0.5               # +0.5 health per minute when conditions m
 HEALTH_DEGRADE_THRESHOLD_HUNGER = 80   # Hunger > this causes health loss
 HEALTH_DEGRADE_THRESHOLD_HAPPINESS = 20 # Happiness < this causes health loss
 HEALTH_DEGRADE_RATE = 0.5              # -0.5 health per minute when conditions met
+
+# Energy Degradation Modifiers
+ENERGY_LOW_FULLNESS_THRESHOLD = 30     # Fullness < this increases energy drain
+ENERGY_LOW_FULLNESS_MULTIPLIER = 2.0   # Energy drains 2x faster when hungry
+ENERGY_RESTORE_FROM_SLEEP = 50         # +50 energy when sleeping
 
 # Maximum degradation time (for power-loss recovery)
 MAX_DEGRADATION_HOURS = 8  # Cap stat changes to this many hours max
@@ -132,22 +139,26 @@ CARE_ACTIONS = {
     "feed": {
         "hunger": -30,      # Reduces hunger
         "happiness": +5,    # Small happiness boost
-        "health": 0
+        "health": 0,
+        "energy": +5        # Small energy boost from eating
     },
     "play": {
         "hunger": +5,       # Makes pet slightly more hungry
         "happiness": +20,   # Significant happiness boost
-        "health": 0
+        "health": 0,
+        "energy": -10       # Playing uses energy
     },
     "clean": {
         "hunger": 0,
         "happiness": +5,    # Small happiness boost
-        "health": +10       # Improves health
+        "health": +10,      # Improves health
+        "energy": 0
     },
     "sleep": {
         "hunger": +10,      # Gets hungrier while sleeping
         "happiness": 0,
-        "health": +15       # Significant health boost
+        "health": +15,      # Significant health boost
+        "energy": +50       # Significant energy restore
     }
 }
 

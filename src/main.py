@@ -195,9 +195,11 @@ class NotAGotchiApp:
             hunger=int(self.pet.hunger),
             happiness=int(self.pet.happiness),
             health=int(self.pet.health),
+            energy=int(self.pet.energy),
             evolution_stage=self.pet.evolution_stage,
             age_seconds=self.pet.age_seconds,
-            last_update=self.pet.last_update
+            last_update=self.pet.last_update,
+            last_sleep_time=self.pet.last_sleep_time
         )
 
         if success:

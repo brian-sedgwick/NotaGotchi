@@ -13,8 +13,9 @@ class Pet:
     """Represents the virtual pet with all its states and behaviors"""
 
     def __init__(self, name: str, pet_id: int = None, hunger: int = None,
-                 happiness: int = None, health: int = None, birth_time: float = None,
-                 last_update: float = None, evolution_stage: int = 0,
+                 happiness: int = None, health: int = None, energy: int = None,
+                 birth_time: float = None, last_update: float = None,
+                 last_sleep_time: float = None, evolution_stage: int = 0,
                  age_seconds: int = 0):
         """
         Initialize a pet instance
@@ -25,8 +26,10 @@ class Pet:
             hunger: Current hunger level (0-100)
             happiness: Current happiness level (0-100)
             health: Current health level (0-100)
+            energy: Current energy level (0-100)
             birth_time: Timestamp of pet creation
             last_update: Timestamp of last stat update
+            last_sleep_time: Timestamp of last sleep action
             evolution_stage: Current evolution stage (0-4)
             age_seconds: Total age in seconds
         """
@@ -35,8 +38,10 @@ class Pet:
         self.hunger = hunger if hunger is not None else config.INITIAL_HUNGER
         self.happiness = happiness if happiness is not None else config.INITIAL_HAPPINESS
         self.health = health if health is not None else config.INITIAL_HEALTH
+        self.energy = energy if energy is not None else config.INITIAL_ENERGY
         self.birth_time = birth_time if birth_time is not None else time.time()
         self.last_update = last_update if last_update is not None else time.time()
+        self.last_sleep_time = last_sleep_time if last_sleep_time is not None else time.time()
         self.evolution_stage = evolution_stage
         self.age_seconds = age_seconds
 
@@ -53,8 +58,10 @@ class Pet:
             hunger=data['hunger'],
             happiness=data['happiness'],
             health=data['health'],
+            energy=data.get('energy', config.INITIAL_ENERGY),  # Default for old saves
             birth_time=data['birth_time'],
             last_update=data['last_update'],
+            last_sleep_time=data.get('last_sleep_time', data['birth_time']),  # Default for old saves
             evolution_stage=data['evolution_stage'],
             age_seconds=data['age_seconds']
         )
@@ -67,8 +74,10 @@ class Pet:
             'hunger': self.hunger,
             'happiness': self.happiness,
             'health': self.health,
+            'energy': self.energy,
             'birth_time': self.birth_time,
             'last_update': self.last_update,
+            'last_sleep_time': self.last_sleep_time,
             'evolution_stage': self.evolution_stage,
             'age_seconds': self.age_seconds
         }
@@ -97,7 +106,8 @@ class Pet:
         changes = {
             'hunger': 0,
             'happiness': 0,
-            'health': 0
+            'health': 0,
+            'energy': 0
         }
 
         # Update hunger (increases over time)
@@ -125,6 +135,17 @@ class Pet:
 
         self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + health_change))
         changes['health'] = health_change
+
+        # Update energy (decreases over time, faster when hungry)
+        energy_change = -config.ENERGY_DECREASE_RATE * time_elapsed_minutes
+
+        # Energy drains faster when pet is hungry (fullness < 30 means hunger > 70)
+        fullness = 100 - self.hunger
+        if fullness < config.ENERGY_LOW_FULLNESS_THRESHOLD:
+            energy_change *= config.ENERGY_LOW_FULLNESS_MULTIPLIER
+
+        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + energy_change))
+        changes['energy'] = energy_change
 
         # Update age
         self.age_seconds += int(time_elapsed_seconds)
@@ -162,6 +183,7 @@ class Pet:
         self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
         self.happiness = max(config.STAT_MIN, min(config.STAT_MAX, self.happiness + changes['happiness']))
         self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + changes['health']))
+        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + changes['energy']))
 
         print(f"{self.name} was fed!")
         return changes
@@ -178,6 +200,7 @@ class Pet:
         self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
         self.happiness = max(config.STAT_MIN, min(config.STAT_MAX, self.happiness + changes['happiness']))
         self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + changes['health']))
+        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + changes['energy']))
 
         print(f"{self.name} enjoyed playing!")
         return changes
@@ -194,6 +217,7 @@ class Pet:
         self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
         self.happiness = max(config.STAT_MIN, min(config.STAT_MAX, self.happiness + changes['happiness']))
         self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + changes['health']))
+        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + changes['energy']))
 
         print(f"{self.name} is now clean!")
         return changes
@@ -210,6 +234,8 @@ class Pet:
         self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
         self.happiness = max(config.STAT_MIN, min(config.STAT_MAX, self.happiness + changes['happiness']))
         self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + changes['health']))
+        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + changes['energy']))
+        self.last_sleep_time = time.time()  # Update last sleep time
 
         print(f"{self.name} is resting...")
         return changes
@@ -284,7 +310,8 @@ class Pet:
         return {
             'hunger': int(self.hunger),
             'happiness': int(self.happiness),
-            'health': int(self.health)
+            'health': int(self.health),
+            'energy': int(self.energy)
         }
 
     def get_age_display(self) -> str:
@@ -314,8 +341,10 @@ class Pet:
         self.hunger = config.INITIAL_HUNGER
         self.happiness = config.INITIAL_HAPPINESS
         self.health = config.INITIAL_HEALTH
+        self.energy = config.INITIAL_ENERGY
         self.birth_time = time.time()
         self.last_update = time.time()
+        self.last_sleep_time = time.time()
         self.evolution_stage = 0
         self.age_seconds = 0
         self.just_evolved = False

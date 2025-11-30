@@ -63,14 +63,31 @@ class DatabaseManager:
                 hunger INTEGER NOT NULL DEFAULT 50,
                 happiness INTEGER NOT NULL DEFAULT 75,
                 health INTEGER NOT NULL DEFAULT 100,
+                energy INTEGER NOT NULL DEFAULT 100,
                 birth_time REAL NOT NULL,
                 last_update REAL NOT NULL,
+                last_sleep_time REAL,
                 evolution_stage INTEGER NOT NULL DEFAULT 0,
                 age_seconds INTEGER NOT NULL DEFAULT 0,
                 is_active INTEGER NOT NULL DEFAULT 1,
                 created_at REAL NOT NULL DEFAULT (julianday('now'))
             )
         ''')
+
+        # Migrate existing databases to add energy and last_sleep_time columns
+        try:
+            cursor.execute("SELECT energy FROM pet_state LIMIT 1")
+        except:
+            # Column doesn't exist, add it
+            cursor.execute("ALTER TABLE pet_state ADD COLUMN energy INTEGER NOT NULL DEFAULT 100")
+            print("Database migrated: Added energy column")
+
+        try:
+            cursor.execute("SELECT last_sleep_time FROM pet_state LIMIT 1")
+        except:
+            # Column doesn't exist, add it
+            cursor.execute("ALTER TABLE pet_state ADD COLUMN last_sleep_time REAL")
+            print("Database migrated: Added last_sleep_time column")
 
         # Pet History Table
         cursor.execute('''
@@ -112,8 +129,8 @@ class DatabaseManager:
         try:
             cursor = self.connection.cursor()
             cursor.execute('''
-                SELECT id, name, hunger, happiness, health, birth_time,
-                       last_update, evolution_stage, age_seconds
+                SELECT id, name, hunger, happiness, health, energy, birth_time,
+                       last_update, last_sleep_time, evolution_stage, age_seconds
                 FROM pet_state
                 WHERE is_active = 1
                 ORDER BY id DESC
@@ -128,10 +145,12 @@ class DatabaseManager:
                     'hunger': row[2],
                     'happiness': row[3],
                     'health': row[4],
-                    'birth_time': row[5],
-                    'last_update': row[6],
-                    'evolution_stage': row[7],
-                    'age_seconds': row[8]
+                    'energy': row[5],
+                    'birth_time': row[6],
+                    'last_update': row[7],
+                    'last_sleep_time': row[8],
+                    'evolution_stage': row[9],
+                    'age_seconds': row[10]
                 }
             return None
 
@@ -140,7 +159,7 @@ class DatabaseManager:
             return None
 
     def create_pet(self, name: str, hunger: int = None, happiness: int = None,
-                   health: int = None) -> Optional[int]:
+                   health: int = None, energy: int = None) -> Optional[int]:
         """Create a new pet and return its ID"""
         try:
             current_time = time.time()
@@ -156,16 +175,18 @@ class DatabaseManager:
             # Create new pet
             cursor.execute('''
                 INSERT INTO pet_state
-                (name, hunger, happiness, health, birth_time, last_update,
-                 evolution_stage, age_seconds, is_active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 1, ?)
+                (name, hunger, happiness, health, energy, birth_time, last_update,
+                 last_sleep_time, evolution_stage, age_seconds, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 1, ?)
             ''', (
                 name,
                 hunger if hunger is not None else config.INITIAL_HUNGER,
                 happiness if happiness is not None else config.INITIAL_HAPPINESS,
                 health if health is not None else config.INITIAL_HEALTH,
+                energy if energy is not None else config.INITIAL_ENERGY,
                 current_time,
                 current_time,
+                current_time,  # last_sleep_time initialized to birth time
                 current_time
             ))
 
@@ -184,8 +205,9 @@ class DatabaseManager:
             return None
 
     def update_pet(self, pet_id: int, hunger: int = None, happiness: int = None,
-                   health: int = None, evolution_stage: int = None,
-                   age_seconds: int = None, last_update: float = None) -> bool:
+                   health: int = None, energy: int = None, evolution_stage: int = None,
+                   age_seconds: int = None, last_update: float = None,
+                   last_sleep_time: float = None) -> bool:
         """Update pet stats"""
         try:
             updates = []
@@ -203,6 +225,10 @@ class DatabaseManager:
                 updates.append("health = ?")
                 params.append(max(config.STAT_MIN, min(config.STAT_MAX, health)))
 
+            if energy is not None:
+                updates.append("energy = ?")
+                params.append(max(config.STAT_MIN, min(config.STAT_MAX, energy)))
+
             if evolution_stage is not None:
                 updates.append("evolution_stage = ?")
                 params.append(evolution_stage)
@@ -210,6 +236,10 @@ class DatabaseManager:
             if age_seconds is not None:
                 updates.append("age_seconds = ?")
                 params.append(age_seconds)
+
+            if last_sleep_time is not None:
+                updates.append("last_sleep_time = ?")
+                params.append(last_sleep_time)
 
             if last_update is not None:
                 updates.append("last_update = ?")
