@@ -288,7 +288,7 @@ class DisplayManager:
         """Draw stat bars on the right side"""
         x = config.STATUS_AREA_X + 5
         y = config.STATUS_AREA_Y + 10
-        bar_width = config.STATUS_AREA_WIDTH - 15
+        bar_width = config.STATUS_AREA_WIDTH - 35  # Leave room for value text on right
         bar_height = 12
         spacing = 35  # Increased spacing to prevent overlap
 
