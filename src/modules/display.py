@@ -74,8 +74,27 @@ class DisplayManager:
             print("Run ./install_emoji_font.sh to install the emoji font")
             self.font_emoji = self.font_small  # Fallback to regular font
 
+        # Load stat bar icon bitmaps
+        icons_dir = os.path.join(config.SPRITES_DIR, "icons")
+        self.icon_food = self._load_icon(os.path.join(icons_dir, "food.bmp"))
+        self.icon_happy = self._load_icon(os.path.join(icons_dir, "happy.bmp"))
+        self.icon_heart = self._load_icon(os.path.join(icons_dir, "heart.bmp"))
+        self.icon_energy = self._load_icon(os.path.join(icons_dir, "energy.bmp"))
+
         if not self.simulation_mode:
             self._initialize_display()
+
+    def _load_icon(self, icon_path: str) -> Optional[Image.Image]:
+        """Load an icon bitmap, return None if not found"""
+        try:
+            icon = Image.open(icon_path)
+            # Ensure it's in the right format (1-bit)
+            if icon.mode != '1':
+                icon = icon.convert('1')
+            return icon
+        except Exception as e:
+            print(f"Warning: Could not load icon {icon_path}: {e}")
+            return None
 
     def _initialize_display(self):
         """Initialize the e-Paper display hardware"""
@@ -132,7 +151,7 @@ class DisplayManager:
             self._draw_quote_box(draw, quote)
 
         # Draw stats (right side)
-        self._draw_stats_bars(draw, stats)
+        self._draw_stats_bars(image, draw, stats)
 
         return image
 
@@ -390,7 +409,7 @@ class DisplayManager:
                     (x + 1 + fill_width, y + height - 1)
                 ], fill=1)
 
-    def _draw_stats_bars(self, draw: ImageDraw.Draw, stats: Dict[str, int]):
+    def _draw_stats_bars(self, image: Image.Image, draw: ImageDraw.Draw, stats: Dict[str, int]):
         """Draw stat bars on the right side"""
         x = config.STATUS_AREA_X + 5
         y = config.STATUS_AREA_Y + 5  # Reduced padding to fit 4 bars
@@ -400,29 +419,39 @@ class DisplayManager:
 
         # Fullness bar (inverted hunger - full bar = well fed, empty = hungry)
         fullness = 100 - stats['hunger']
-        self._draw_stat_bar(draw, x, y, bar_width, bar_height,
-                          "🍖", fullness)
+        self._draw_stat_bar(image, draw, x, y, bar_width, bar_height,
+                          self.icon_food, fullness, fallback_text="🍖")
 
         # Happiness bar
-        self._draw_stat_bar(draw, x, y + spacing, bar_width, bar_height,
-                          "😊", stats['happiness'])
+        self._draw_stat_bar(image, draw, x, y + spacing, bar_width, bar_height,
+                          self.icon_happy, stats['happiness'], fallback_text="😊")
 
         # Health bar
-        self._draw_stat_bar(draw, x, y + spacing * 2, bar_width, bar_height,
-                          "❤️", stats['health'])
+        self._draw_stat_bar(image, draw, x, y + spacing * 2, bar_width, bar_height,
+                          self.icon_heart, stats['health'], fallback_text="❤️")
 
         # Energy bar
-        self._draw_stat_bar(draw, x, y + spacing * 3, bar_width, bar_height,
-                          "⚡", stats['energy'])
+        self._draw_stat_bar(image, draw, x, y + spacing * 3, bar_width, bar_height,
+                          self.icon_energy, stats['energy'], fallback_text="⚡")
 
-    def _draw_stat_bar(self, draw: ImageDraw.Draw, x: int, y: int,
-                       width: int, height: int, label: str, value: int):
-        """Draw a single stat bar"""
-        # Draw emoji label in front of (to the left of) the bar
-        label_width = 15  # Space reserved for emoji
-        draw.text((x, y), label, fill=0, font=self.font_emoji)
+    def _draw_stat_bar(self, image: Image.Image, draw: ImageDraw.Draw, x: int, y: int,
+                       width: int, height: int, icon: Optional[Image.Image], value: int,
+                       fallback_text: str = "?"):
+        """Draw a single stat bar with icon or text label"""
+        # Space reserved for icon/label
+        label_width = 15
 
-        # Bar starts after the emoji label, and is narrower to accommodate the label
+        # Draw icon or fallback text
+        if icon is not None:
+            # Paste icon bitmap
+            # Center the icon vertically relative to the bar
+            icon_y = y - 1  # Slight adjustment to align better
+            image.paste(icon, (x, icon_y))
+        else:
+            # Fallback to emoji text if icon not available
+            draw.text((x, y), fallback_text, fill=0, font=self.font_emoji)
+
+        # Bar starts after the icon/label, and is narrower to accommodate it
         bar_x = x + label_width
         bar_width = width - label_width
 
