@@ -41,7 +41,7 @@ class DisplayManager:
         self.height = config.DISPLAY_HEIGHT
         self.last_full_refresh_time = 0  # Track last full refresh timestamp
 
-        # Try to load default font
+        # Try to load default fonts
         try:
             self.font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10)
             self.font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
@@ -51,6 +51,28 @@ class DisplayManager:
             self.font_small = ImageFont.load_default()
             self.font_medium = ImageFont.load_default()
             self.font_large = ImageFont.load_default()
+
+        # Try to load emoji font (Symbola)
+        import os
+        emoji_font_paths = [
+            os.path.expanduser("~/.fonts/Symbola.ttf"),  # User fonts directory
+            "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",  # System location
+            "/usr/share/fonts/Symbola.ttf"  # Alternative system location
+        ]
+
+        self.font_emoji = None
+        for font_path in emoji_font_paths:
+            try:
+                self.font_emoji = ImageFont.truetype(font_path, 10)
+                print(f"Loaded emoji font from: {font_path}")
+                break
+            except:
+                continue
+
+        if self.font_emoji is None:
+            print("Warning: Emoji font (Symbola) not found, emojis may display as boxes")
+            print("Run ./install_emoji_font.sh to install the emoji font")
+            self.font_emoji = self.font_small  # Fallback to regular font
 
         if not self.simulation_mode:
             self._initialize_display()
@@ -398,7 +420,7 @@ class DisplayManager:
         """Draw a single stat bar"""
         # Draw emoji label in front of (to the left of) the bar
         label_width = 15  # Space reserved for emoji
-        draw.text((x, y), label, fill=0, font=self.font_small)
+        draw.text((x, y), label, fill=0, font=self.font_emoji)
 
         # Bar starts after the emoji label, and is narrower to accommodate the label
         bar_x = x + label_width
