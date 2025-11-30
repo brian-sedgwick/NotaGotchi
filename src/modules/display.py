@@ -438,14 +438,15 @@ class DisplayManager:
                        width: int, height: int, icon: Optional[Image.Image], value: int,
                        fallback_text: str = "?"):
         """Draw a single stat bar with icon or text label"""
-        # Space reserved for icon/label
-        label_width = 15
+        # Space reserved for icon/label (20px icon + 2px padding)
+        label_width = 22
 
         # Draw icon or fallback text
         if icon is not None:
             # Paste icon bitmap
             # Center the icon vertically relative to the bar
-            icon_y = y - 1  # Slight adjustment to align better
+            # Bar height is 10px, icon is 20px, so offset up by 5px to center
+            icon_y = y - 5
             image.paste(icon, (x, icon_y))
         else:
             # Fallback to emoji text if icon not available

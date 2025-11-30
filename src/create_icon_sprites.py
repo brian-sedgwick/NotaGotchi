@@ -2,14 +2,14 @@
 """
 Create Icon Sprites for Stat Bars
 
-Generates 12×12 pixel black and white BMP icons optimized for e-ink display.
+Generates 20×20 pixel black and white BMP icons optimized for e-ink display.
 """
 
 from PIL import Image, ImageDraw
 import os
 
 # Icon size
-ICON_SIZE = 12
+ICON_SIZE = 20
 
 # Output directory
 ICONS_DIR = os.path.join(os.path.dirname(__file__), "resources", "sprites", "icons")
@@ -20,12 +20,12 @@ def create_food_icon():
     img = Image.new('1', (ICON_SIZE, ICON_SIZE), 1)  # White background
     draw = ImageDraw.Draw(img)
 
-    # Simple drumstick shape
+    # Simple drumstick shape (scaled up from 12px)
     # Bone part (thin rectangle at bottom)
-    draw.rectangle([(5, 8), (6, 11)], fill=0)
+    draw.rectangle([(8, 14), (11, 19)], fill=0)
 
-    # Meat part (circle at top)
-    draw.ellipse([(3, 2), (8, 7)], fill=0)
+    # Meat part (larger circle at top)
+    draw.ellipse([(5, 3), (14, 12)], fill=0)
 
     return img
 
@@ -35,15 +35,15 @@ def create_happy_icon():
     img = Image.new('1', (ICON_SIZE, ICON_SIZE), 1)
     draw = ImageDraw.Draw(img)
 
-    # Face circle
-    draw.ellipse([(1, 1), (10, 10)], outline=0, width=1)
+    # Face circle (larger)
+    draw.ellipse([(2, 2), (17, 17)], outline=0, width=2)
 
-    # Eyes
-    draw.point((4, 4), fill=0)
-    draw.point((7, 4), fill=0)
+    # Eyes (bigger dots)
+    draw.ellipse([(6, 7), (8, 9)], fill=0)
+    draw.ellipse([(11, 7), (13, 9)], fill=0)
 
     # Smile (arc)
-    draw.arc([(3, 5), (8, 9)], start=0, end=180, fill=0, width=1)
+    draw.arc([(5, 8), (14, 15)], start=0, end=180, fill=0, width=2)
 
     return img
 
@@ -53,13 +53,13 @@ def create_heart_icon():
     img = Image.new('1', (ICON_SIZE, ICON_SIZE), 1)
     draw = ImageDraw.Draw(img)
 
-    # Heart shape using polygon
+    # Heart shape using polygon (scaled up)
     # Top left bump
-    draw.ellipse([(2, 2), (5, 5)], fill=0)
+    draw.ellipse([(3, 4), (9, 10)], fill=0)
     # Top right bump
-    draw.ellipse([(6, 2), (9, 5)], fill=0)
+    draw.ellipse([(10, 4), (16, 10)], fill=0)
     # Bottom triangle
-    draw.polygon([(2, 4), (9, 4), (5, 10)], fill=0)
+    draw.polygon([(3, 8), (16, 8), (9, 17)], fill=0)
 
     return img
 
@@ -69,14 +69,14 @@ def create_energy_icon():
     img = Image.new('1', (ICON_SIZE, ICON_SIZE), 1)
     draw = ImageDraw.Draw(img)
 
-    # Lightning bolt shape
+    # Lightning bolt shape (scaled up and more defined)
     points = [
-        (7, 1),   # Top right
-        (5, 5),   # Middle left
-        (6, 5),   # Middle right
-        (4, 11),  # Bottom left
-        (6, 6),   # Back to middle
-        (5, 6),   # Middle left again
+        (12, 2),   # Top right
+        (8, 9),    # Middle left
+        (10, 9),   # Middle right
+        (6, 18),   # Bottom left
+        (10, 10),  # Back to middle
+        (8, 10),   # Middle left again
     ]
     draw.polygon(points, fill=0)
 
