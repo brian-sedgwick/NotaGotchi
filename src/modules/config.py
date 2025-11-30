@@ -65,8 +65,8 @@ DISPLAY_UPDATE_RATE = 1.0       # Seconds between display updates
 
 # Quote Display Settings
 QUOTE_ROTATION_INTERVAL = 10   # Seconds between quote changes
-QUOTE_BOX_Y = 72               # Y position (lower portion of 100px pet sprite)
-QUOTE_BOX_HEIGHT = 28          # Height of quote box area
+QUOTE_BOX_Y = 76               # Y position (lower portion of 100px pet sprite)
+QUOTE_BOX_HEIGHT = 24          # Height of quote box area
 QUOTE_BOX_PADDING = 3          # Padding inside quote box
 
 # ============================================================================

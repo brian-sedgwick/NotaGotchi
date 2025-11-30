@@ -303,15 +303,21 @@ class DisplayManager:
         """
         try:
             from ina219 import INA219
+            print("[Battery] INA219 library imported successfully")
 
             # INA219 configuration (matches your test code)
             SHUNT_OHMS = 0.1
+            print(f"[Battery] Connecting to INA219 (bus=1, address=0x43, shunt={SHUNT_OHMS} ohms)")
             ina = INA219(SHUNT_OHMS, busnum=1, address=0x43)
             ina.configure()
+            print("[Battery] INA219 configured successfully")
 
             # Calculate percentage based on voltage (3V to 4.2V range for LiPo)
             voltage = ina.voltage()
+            print(f"[Battery] Voltage read: {voltage:.3f}V")
+
             percent = (voltage - 3.0) / 1.2 * 100
+            print(f"[Battery] Calculated percentage (raw): {percent:.1f}%")
 
             # Clamp to 0-100 range
             if percent > 100:
@@ -319,14 +325,16 @@ class DisplayManager:
             if percent < 0:
                 percent = 0
 
+            print(f"[Battery] Final percentage: {int(percent)}%")
             return int(percent)
 
-        except ImportError:
+        except ImportError as e:
             # ina219 library not installed
+            print(f"[Battery] ImportError - INA219 library not available: {e}")
             return None
         except Exception as e:
             # INA219 not connected or I2C error
-            print(f"Battery read error: {e}")
+            print(f"[Battery] Error reading from INA219: {type(e).__name__}: {e}")
             return None
 
     def _draw_battery_icon(self, draw: ImageDraw.Draw, x: int, y: int):
