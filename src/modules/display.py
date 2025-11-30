@@ -274,7 +274,7 @@ class DisplayManager:
         return image
 
     def _draw_header(self, draw: ImageDraw.Draw, pet_name: str, age: str):
-        """Draw header with pet name and age"""
+        """Draw header with pet name, age, and battery"""
         # Background
         draw.rectangle([(0, 0), (self.width, config.HEADER_HEIGHT)],
                       fill=0)
@@ -282,12 +282,83 @@ class DisplayManager:
         # Pet name (left side, white text)
         draw.text((2, 1), pet_name, fill=1, font=self.font_small)
 
-        # Age (right side, white text)
+        # Battery icon (right side)
+        battery_width = 15
+        battery_x = self.width - battery_width - 2
+        self._draw_battery_icon(draw, battery_x, 2)
+
+        # Age (pushed left to make room for battery)
         age_text = f"Age: {age}"
         bbox = draw.textbbox((0, 0), age_text, font=self.font_small)
         text_width = bbox[2] - bbox[0]
-        draw.text((self.width - text_width - 2, 1), age_text,
-                 fill=1, font=self.font_small)
+        age_x = battery_x - text_width - 4  # 4px gap between age and battery
+        draw.text((age_x, 1), age_text, fill=1, font=self.font_small)
+
+    def _get_battery_level(self) -> Optional[int]:
+        """
+        Get battery level from INA219 I2C battery monitor (0-100)
+
+        Returns:
+            Battery percentage (0-100) or None if not available
+        """
+        try:
+            from ina219 import INA219
+
+            # INA219 configuration (matches your test code)
+            SHUNT_OHMS = 0.1
+            ina = INA219(SHUNT_OHMS, busnum=1, address=0x43)
+            ina.configure()
+
+            # Calculate percentage based on voltage (3V to 4.2V range for LiPo)
+            voltage = ina.voltage()
+            percent = (voltage - 3.0) / 1.2 * 100
+
+            # Clamp to 0-100 range
+            if percent > 100:
+                percent = 100
+            if percent < 0:
+                percent = 0
+
+            return int(percent)
+
+        except ImportError:
+            # ina219 library not installed
+            return None
+        except Exception as e:
+            # INA219 not connected or I2C error
+            print(f"Battery read error: {e}")
+            return None
+
+    def _draw_battery_icon(self, draw: ImageDraw.Draw, x: int, y: int):
+        """Draw battery icon with current charge level"""
+        battery_level = self._get_battery_level()
+
+        # Battery dimensions
+        width = 12
+        height = 8
+        tip_width = 2
+        tip_height = 4
+
+        if battery_level is None:
+            # No battery - draw AC power symbol
+            draw.text((x, y), "AC", fill=1, font=self.font_small)
+        else:
+            # Draw battery outline (white)
+            draw.rectangle([(x, y), (x + width, y + height)], outline=1, fill=0)
+
+            # Draw battery tip (white)
+            draw.rectangle([
+                (x + width, y + (height - tip_height) // 2),
+                (x + width + tip_width, y + (height + tip_height) // 2)
+            ], fill=1, outline=1)
+
+            # Draw fill level (white fill based on percentage)
+            fill_width = int((battery_level / 100.0) * (width - 2))
+            if fill_width > 0:
+                draw.rectangle([
+                    (x + 1, y + 1),
+                    (x + 1 + fill_width, y + height - 1)
+                ], fill=1)
 
     def _draw_stats_bars(self, draw: ImageDraw.Draw, stats: Dict[str, int]):
         """Draw stat bars on the right side"""

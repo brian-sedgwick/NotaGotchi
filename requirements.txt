@@ -5,6 +5,7 @@
 RPi.GPIO>=0.7.1
 gpiozero>=1.6.2
 spidev>=3.5
+pi-ina219>=1.4.0
 
 # Note: lgpio is optional but recommended for newer Pi systems
 # Install via: sudo apt install python3-lgpio
