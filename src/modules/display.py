@@ -379,38 +379,43 @@ class DisplayManager:
         # Fullness bar (inverted hunger - full bar = well fed, empty = hungry)
         fullness = 100 - stats['hunger']
         self._draw_stat_bar(draw, x, y, bar_width, bar_height,
-                          "Fullness", fullness)
+                          "🍖", fullness)
 
         # Happiness bar
         self._draw_stat_bar(draw, x, y + spacing, bar_width, bar_height,
-                          "Happy", stats['happiness'])
+                          "😊", stats['happiness'])
 
         # Health bar
         self._draw_stat_bar(draw, x, y + spacing * 2, bar_width, bar_height,
-                          "Health", stats['health'])
+                          "❤️", stats['health'])
 
         # Energy bar
         self._draw_stat_bar(draw, x, y + spacing * 3, bar_width, bar_height,
-                          "Energy", stats['energy'])
+                          "⚡", stats['energy'])
 
     def _draw_stat_bar(self, draw: ImageDraw.Draw, x: int, y: int,
                        width: int, height: int, label: str, value: int):
         """Draw a single stat bar"""
-        # Label (with extra space below)
-        draw.text((x, y - 13), label, fill=0, font=self.font_small)
+        # Draw emoji label in front of (to the left of) the bar
+        label_width = 15  # Space reserved for emoji
+        draw.text((x, y), label, fill=0, font=self.font_small)
+
+        # Bar starts after the emoji label, and is narrower to accommodate the label
+        bar_x = x + label_width
+        bar_width = width - label_width
 
         # Bar outline
-        draw.rectangle([(x, y), (x + width, y + height)], outline=0, width=1)
+        draw.rectangle([(bar_x, y), (bar_x + bar_width, y + height)], outline=0, width=1)
 
         # Fill bar based on value (0-100)
-        fill_width = int((value / 100.0) * (width - 2))
+        fill_width = int((value / 100.0) * (bar_width - 2))
         if fill_width > 0:
-            draw.rectangle([(x + 1, y + 1),
-                          (x + 1 + fill_width, y + height - 1)], fill=0)
+            draw.rectangle([(bar_x + 1, y + 1),
+                          (bar_x + 1 + fill_width, y + height - 1)], fill=0)
 
         # Value text
         value_text = f"{value}"
-        draw.text((x + width + 3, y + 1), value_text, fill=0, font=self.font_small)
+        draw.text((bar_x + bar_width + 3, y + 1), value_text, fill=0, font=self.font_small)
 
     def _draw_quote_box(self, draw: ImageDraw.Draw, quote: str):
         """Draw quote text box overlaid on lower pet sprite area"""
