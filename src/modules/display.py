@@ -392,8 +392,8 @@ class DisplayManager:
     def _draw_stat_bar(self, draw: ImageDraw.Draw, x: int, y: int,
                        width: int, height: int, label: str, value: int):
         """Draw a single stat bar"""
-        # Label
-        draw.text((x, y - 10), label, fill=0, font=self.font_small)
+        # Label (with extra space below)
+        draw.text((x, y - 13), label, fill=0, font=self.font_small)
 
         # Bar outline
         draw.rectangle([(x, y), (x + width, y + height)], outline=0, width=1)
