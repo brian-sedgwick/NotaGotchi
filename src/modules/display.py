@@ -71,7 +71,7 @@ class DisplayManager:
 
     def draw_status_screen(self, pet_sprite: Optional[Image.Image],
                           pet_name: str, stats: Dict[str, int],
-                          age_display: str) -> Image.Image:
+                          age_display: str, quote: Optional[str] = None) -> Image.Image:
         """
         Draw the main status screen with pet and stats
 
@@ -80,6 +80,7 @@ class DisplayManager:
             pet_name: Pet's name
             stats: Dict with 'hunger', 'happiness', 'health'
             age_display: Formatted age string (e.g., "5h" or "2d")
+            quote: Optional quote to display over pet sprite
 
         Returns:
             PIL Image of the complete screen
@@ -103,6 +104,10 @@ class DisplayManager:
             ], outline=0)
             draw.text((config.PET_SPRITE_X + 35, config.PET_SPRITE_Y + 45),
                      "???", fill=0, font=self.font_large)
+
+        # Draw quote box (overlaid on lower pet sprite area)
+        if quote:
+            self._draw_quote_box(draw, quote)
 
         # Draw stats (right side)
         self._draw_stats_bars(draw, stats)
@@ -323,6 +328,56 @@ class DisplayManager:
         # Value text
         value_text = f"{value}"
         draw.text((x + width + 3, y + 1), value_text, fill=0, font=self.font_small)
+
+    def _draw_quote_box(self, draw: ImageDraw.Draw, quote: str):
+        """Draw quote text box overlaid on lower pet sprite area"""
+        # Calculate quote box position (lower portion of pet sprite)
+        box_x = config.PET_SPRITE_X
+        box_y = config.PET_SPRITE_Y + config.QUOTE_BOX_Y
+        box_width = config.PET_SPRITE_WIDTH
+        box_height = config.QUOTE_BOX_HEIGHT
+        padding = config.QUOTE_BOX_PADDING
+
+        # Draw white background box with border
+        draw.rectangle([
+            (box_x, box_y),
+            (box_x + box_width, box_y + box_height)
+        ], fill=1, outline=0, width=1)
+
+        # Wrap text to fit within box width
+        max_chars_per_line = 16  # Approximate chars that fit in 100px with small font
+        words = quote.split()
+        lines = []
+        current_line = ""
+
+        for word in words:
+            test_line = current_line + (" " if current_line else "") + word
+            if len(test_line) <= max_chars_per_line:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+
+        if current_line:
+            lines.append(current_line)
+
+        # Limit to 3 lines maximum
+        lines = lines[:3]
+
+        # Draw text centered in box
+        line_height = 10  # Approximate height of small font
+        total_text_height = len(lines) * line_height
+        start_y = box_y + padding + (box_height - total_text_height - 2 * padding) // 2
+
+        for i, line in enumerate(lines):
+            # Center text horizontally
+            bbox = draw.textbbox((0, 0), line, font=self.font_small)
+            text_width = bbox[2] - bbox[0]
+            text_x = box_x + (box_width - text_width) // 2
+            text_y = start_y + i * line_height
+
+            draw.text((text_x, text_y), line, fill=0, font=self.font_small)
 
     def update_display(self, image: Image.Image, full_refresh: bool = False):
         """

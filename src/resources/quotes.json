@@ -1,0 +1,56 @@
+{
+  "happy": [
+    "I'm so happy!",
+    "This is great!",
+    "Feeling good!",
+    "Life is wonderful!",
+    "Everything's perfect!"
+  ],
+  "sad": [
+    "I'm lonely...",
+    "Feeling blue",
+    "Need attention",
+    "So sad...",
+    "Someone play with me?"
+  ],
+  "hungry": [
+    "I'm hungry!",
+    "Feed me please",
+    "Need food!",
+    "So hungry...",
+    "When's dinner?"
+  ],
+  "sick": [
+    "Not feeling well",
+    "I need care",
+    "Help me...",
+    "Feeling sick...",
+    "Need rest"
+  ],
+  "excited": [
+    "WOW!",
+    "This is amazing!",
+    "Best day ever!",
+    "So excited!!!",
+    "Yay!!!"
+  ],
+  "content": [
+    "All is well",
+    "Just right",
+    "Peaceful",
+    "Life is good",
+    "Nice and comfy"
+  ],
+  "dead": [
+    "...",
+    "x_x",
+    ""
+  ],
+  "sleeping": [
+    "Zzz...",
+    "Sweet dreams",
+    "Sleeping...",
+    "*snore*",
+    "Zzzzzz"
+  ]
+}

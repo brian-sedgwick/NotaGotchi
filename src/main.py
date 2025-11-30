@@ -20,6 +20,7 @@ from modules.sprite_manager import SpriteManager
 from modules.display import DisplayManager
 from modules.input_handler import InputHandler, InputEvent
 from modules.screen_manager import ScreenManager
+from modules.quote_manager import QuoteManager
 
 
 class NotAGotchiApp:
@@ -44,12 +45,15 @@ class NotAGotchiApp:
         self.display = DisplayManager(simulation_mode=simulation_mode)
         self.input_handler = InputHandler(simulation_mode=simulation_mode)
         self.screen_manager = ScreenManager()
+        self.quote_manager = QuoteManager(config.QUOTES_FILE)
 
         # Game state
         self.pet = None
         self.last_update_time = time.time()
         self.last_save_time = time.time()
         self.last_display_time = time.time()
+        self.last_quote_change_time = time.time()
+        self.current_quote = None
         self.action_occurred = False  # Track user actions for full refresh
         self.first_render = True  # Force full refresh on first render
 
@@ -285,6 +289,12 @@ class NotAGotchiApp:
         if self.pet:
             self.pet.tick_evolution_timer(current_time - self.last_display_time)
 
+        # Update quote rotation (every 10 seconds)
+        if self.pet and current_time - self.last_quote_change_time >= config.QUOTE_ROTATION_INTERVAL:
+            emotion = self.pet.get_emotion_state()
+            self.current_quote = self.quote_manager.get_random_quote(emotion)
+            self.last_quote_change_time = current_time
+
         # Render based on current screen
         if self.screen_manager.is_home():
             image = self._render_home_screen()
@@ -330,7 +340,8 @@ class NotAGotchiApp:
             pet_sprite,
             self.pet.name,
             self.pet.get_stats_dict(),
-            self.pet.get_age_display()
+            self.pet.get_age_display(),
+            self.current_quote
         )
 
     def _render_menu_screen(self):

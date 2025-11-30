@@ -19,6 +19,7 @@ VERSION = "0.1.0"
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESOURCES_DIR = os.path.join(PROJECT_ROOT, "resources")
 SPRITES_DIR = os.path.join(RESOURCES_DIR, "sprites")
+QUOTES_FILE = os.path.join(RESOURCES_DIR, "quotes.json")
 DATA_DIR = os.path.join(os.path.dirname(PROJECT_ROOT), "data")
 DATABASE_PATH = os.path.join(DATA_DIR, "not-a-gotchi.db")
 
@@ -61,6 +62,12 @@ HEADER_HEIGHT = 14     # Top header for time/battery
 PARTIAL_REFRESH_INTERVAL = 1    # Seconds between partial refreshes
 FULL_REFRESH_MIN_INTERVAL = 30  # Minimum seconds between full refreshes (on user action)
 DISPLAY_UPDATE_RATE = 1.0       # Seconds between display updates
+
+# Quote Display Settings
+QUOTE_ROTATION_INTERVAL = 10   # Seconds between quote changes
+QUOTE_BOX_Y = 80               # Y position (lower portion of 100px pet sprite)
+QUOTE_BOX_HEIGHT = 34          # Height of quote box area
+QUOTE_BOX_PADDING = 3          # Padding inside quote box
 
 # ============================================================================
 # SPRITE CONFIGURATION
