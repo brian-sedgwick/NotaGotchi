@@ -100,9 +100,22 @@ class DisplayManager:
         """Load an icon from a specific path, return None if not found"""
         try:
             icon = Image.open(icon_path)
-            # Ensure it's in the right format (1-bit)
+
+            # Handle transparency by compositing onto white background
+            if icon.mode in ('RGBA', 'LA', 'P'):
+                # Create white background
+                background = Image.new('RGB', icon.size, (255, 255, 255))
+                # Convert icon to RGBA if it's not already
+                if icon.mode != 'RGBA':
+                    icon = icon.convert('RGBA')
+                # Paste icon onto white background using alpha channel
+                background.paste(icon, (0, 0), icon)
+                icon = background
+
+            # Convert to 1-bit (black and white)
             if icon.mode != '1':
                 icon = icon.convert('1')
+
             print(f"Loaded icon: {os.path.basename(icon_path)}")
             return icon
         except Exception:
