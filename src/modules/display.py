@@ -63,7 +63,7 @@ class DisplayManager:
         self.font_emoji = None
         for font_path in emoji_font_paths:
             try:
-                self.font_emoji = ImageFont.truetype(font_path, 10)
+                self.font_emoji = ImageFont.truetype(font_path, 14)
                 print(f"Loaded emoji font from: {font_path}")
                 break
             except:
