@@ -287,14 +287,15 @@ class DisplayManager:
     def _draw_stats_bars(self, draw: ImageDraw.Draw, stats: Dict[str, int]):
         """Draw stat bars on the right side"""
         x = config.STATUS_AREA_X + 5
-        y = config.STATUS_AREA_Y + 10
+        y = config.STATUS_AREA_Y + 18  # Increased padding to center vertically
         bar_width = config.STATUS_AREA_WIDTH - 35  # Leave room for value text on right
         bar_height = 12
         spacing = 35  # Increased spacing to prevent overlap
 
-        # Hunger bar
+        # Fullness bar (inverted hunger - full bar = well fed, empty = hungry)
+        fullness = 100 - stats['hunger']
         self._draw_stat_bar(draw, x, y, bar_width, bar_height,
-                          "Hunger", stats['hunger'])
+                          "Fullness", fullness)
 
         # Happiness bar
         self._draw_stat_bar(draw, x, y + spacing, bar_width, bar_height,
