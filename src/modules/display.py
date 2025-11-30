@@ -74,26 +74,39 @@ class DisplayManager:
             print("Run ./install_emoji_font.sh to install the emoji font")
             self.font_emoji = self.font_small  # Fallback to regular font
 
-        # Load stat bar icon bitmaps
+        # Load stat bar icon bitmaps (supports both PNG and BMP)
         icons_dir = os.path.join(config.SPRITES_DIR, "icons")
-        self.icon_food = self._load_icon(os.path.join(icons_dir, "food.bmp"))
-        self.icon_happy = self._load_icon(os.path.join(icons_dir, "happy.bmp"))
-        self.icon_heart = self._load_icon(os.path.join(icons_dir, "heart.bmp"))
-        self.icon_energy = self._load_icon(os.path.join(icons_dir, "energy.bmp"))
+        self.icon_food = self._load_icon_flexible(icons_dir, "food")
+        self.icon_happy = self._load_icon_flexible(icons_dir, "happy")
+        self.icon_heart = self._load_icon_flexible(icons_dir, "heart")
+        self.icon_energy = self._load_icon_flexible(icons_dir, "energy")
 
         if not self.simulation_mode:
             self._initialize_display()
 
+    def _load_icon_flexible(self, icons_dir: str, icon_name: str) -> Optional[Image.Image]:
+        """Load an icon, trying multiple formats (PNG, BMP)"""
+        # Try PNG first (most common from Icons8), then BMP
+        for extension in ['.png', '.bmp']:
+            icon_path = os.path.join(icons_dir, f"{icon_name}{extension}")
+            icon = self._load_icon(icon_path)
+            if icon is not None:
+                return icon
+
+        print(f"Warning: Could not find icon '{icon_name}' in PNG or BMP format")
+        return None
+
     def _load_icon(self, icon_path: str) -> Optional[Image.Image]:
-        """Load an icon bitmap, return None if not found"""
+        """Load an icon from a specific path, return None if not found"""
         try:
             icon = Image.open(icon_path)
             # Ensure it's in the right format (1-bit)
             if icon.mode != '1':
                 icon = icon.convert('1')
+            print(f"Loaded icon: {os.path.basename(icon_path)}")
             return icon
-        except Exception as e:
-            print(f"Warning: Could not load icon {icon_path}: {e}")
+        except Exception:
+            # Silently fail - we try multiple extensions
             return None
 
     def _initialize_display(self):
