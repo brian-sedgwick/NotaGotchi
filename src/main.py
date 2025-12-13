@@ -287,9 +287,11 @@ class NotAGotchiApp:
 
         self.last_display_time = current_time
 
-        # Update evolution timer
+        # Update evolution and sleep timers
         if self.pet:
-            self.pet.tick_evolution_timer(current_time - self.last_display_time)
+            delta_time = current_time - self.last_display_time
+            self.pet.tick_evolution_timer(delta_time)
+            self.pet.tick_sleep_timer(delta_time)
 
         # Update quote rotation (every 10 seconds)
         if self.pet and current_time - self.last_quote_change_time >= config.QUOTE_ROTATION_INTERVAL:

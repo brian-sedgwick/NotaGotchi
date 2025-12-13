@@ -52,5 +52,12 @@
     "Sleeping...",
     "*snore*",
     "Zzzzzz"
+  ],
+  "tired": [
+    "So tired...",
+    "Need rest",
+    "Low energy",
+    "Exhausted",
+    "Can't go on..."
   ]
 }

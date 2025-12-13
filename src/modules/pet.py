@@ -49,6 +49,10 @@ class Pet:
         self.just_evolved = False
         self.evolution_display_timer = 0
 
+        # Track if pet is sleeping (for emotion display purposes)
+        self.is_sleeping = False
+        self.sleep_display_timer = 0
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Pet':
         """Create Pet instance from dictionary (e.g., database row)"""
@@ -176,8 +180,13 @@ class Pet:
         Feed the pet
 
         Returns:
-            Dictionary of stat changes
+            Dictionary of stat changes (empty dict if dead)
         """
+        # Dead pets cannot be fed
+        if not self.is_alive():
+            print(f"{self.name} is dead and cannot be fed.")
+            return {}
+
         changes = config.CARE_ACTIONS['feed'].copy()
 
         self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
@@ -193,8 +202,13 @@ class Pet:
         Play with the pet
 
         Returns:
-            Dictionary of stat changes
+            Dictionary of stat changes (empty dict if dead)
         """
+        # Dead pets cannot play
+        if not self.is_alive():
+            print(f"{self.name} is dead and cannot play.")
+            return {}
+
         changes = config.CARE_ACTIONS['play'].copy()
 
         self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
@@ -210,8 +224,13 @@ class Pet:
         Clean the pet
 
         Returns:
-            Dictionary of stat changes
+            Dictionary of stat changes (empty dict if dead)
         """
+        # Dead pets cannot be cleaned
+        if not self.is_alive():
+            print(f"{self.name} is dead and cannot be cleaned.")
+            return {}
+
         changes = config.CARE_ACTIONS['clean'].copy()
 
         self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
@@ -227,8 +246,13 @@ class Pet:
         Put the pet to sleep
 
         Returns:
-            Dictionary of stat changes
+            Dictionary of stat changes (empty dict if dead)
         """
+        # Dead pets cannot sleep
+        if not self.is_alive():
+            print(f"{self.name} is dead and cannot sleep.")
+            return {}
+
         changes = config.CARE_ACTIONS['sleep'].copy()
 
         self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
@@ -236,6 +260,10 @@ class Pet:
         self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + changes['health']))
         self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + changes['energy']))
         self.last_sleep_time = time.time()  # Update last sleep time
+
+        # Set sleeping state for temporary display
+        self.is_sleeping = True
+        self.sleep_display_timer = config.SLEEP_DISPLAY_DURATION
 
         print(f"{self.name} is resting...")
         return changes
@@ -247,9 +275,13 @@ class Pet:
         Returns:
             Emotion name (e.g., "happy", "sad", "hungry", etc.)
         """
+        # Check if sleeping state should be displayed (temporary after sleep action)
+        if self.is_sleeping and self.sleep_display_timer > 0:
+            return "sleeping"
+
         # Evaluate emotion rules in order
         for rule in config.EMOTION_RULES:
-            if rule['condition'](self.hunger, self.happiness, self.health):
+            if rule['condition'](self.hunger, self.happiness, self.health, self.energy):
                 return rule['emotion']
 
         # Default fallback (should never reach here due to catch-all rule)
@@ -301,6 +333,19 @@ class Pet:
                 self.just_evolved = False
                 self.evolution_display_timer = 0
 
+    def tick_sleep_timer(self, delta_time: float):
+        """
+        Update sleeping display timer
+
+        Args:
+            delta_time: Time elapsed in seconds
+        """
+        if self.is_sleeping and self.sleep_display_timer > 0:
+            self.sleep_display_timer -= delta_time
+            if self.sleep_display_timer <= 0:
+                self.is_sleeping = False
+                self.sleep_display_timer = 0
+
     def is_alive(self) -> bool:
         """Check if pet is still alive"""
         return self.health > 0
@@ -349,6 +394,8 @@ class Pet:
         self.age_seconds = 0
         self.just_evolved = False
         self.evolution_display_timer = 0
+        self.is_sleeping = False
+        self.sleep_display_timer = 0
 
         print(f"Pet reset: {self.name}")
 

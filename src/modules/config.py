@@ -82,6 +82,7 @@ EMOTION_SPRITES = {
     "hungry": "hungry.bmp",
     "sick": "sick.bmp",
     "sleeping": "sleeping.bmp",
+    "tired": "tired.bmp",
     "excited": "excited.bmp",
     "content": "content.bmp",
     "dead": "dead.bmp"
@@ -167,21 +168,23 @@ CARE_ACTIONS = {
 # ============================================================================
 # Thresholds for determining pet's current emotion based on stats
 # Evaluated in order - first match wins
+# Lambda parameters: h=hunger, hp=happiness, ht=health, e=energy
 EMOTION_RULES = [
     # Critical states (checked first)
-    {"emotion": "dead", "condition": lambda h, hp, ht: ht <= 0},
-    {"emotion": "sick", "condition": lambda h, hp, ht: ht < 30},
+    {"emotion": "dead", "condition": lambda h, hp, ht, e: ht <= 0},
+    {"emotion": "sick", "condition": lambda h, hp, ht, e: ht < 30},
 
     # Needs-based emotions
-    {"emotion": "hungry", "condition": lambda h, hp, ht: h > 70},
-    {"emotion": "sad", "condition": lambda h, hp, ht: hp < 30},
+    {"emotion": "hungry", "condition": lambda h, hp, ht, e: h > 70},
+    {"emotion": "tired", "condition": lambda h, hp, ht, e: e < 30},
+    {"emotion": "sad", "condition": lambda h, hp, ht, e: hp < 30},
 
     # Positive emotions
-    {"emotion": "excited", "condition": lambda h, hp, ht: hp > 80 and h < 30},
-    {"emotion": "content", "condition": lambda h, hp, ht: h < 50 and hp > 50 and ht > 70},
+    {"emotion": "excited", "condition": lambda h, hp, ht, e: hp > 80 and h < 30},
+    {"emotion": "content", "condition": lambda h, hp, ht, e: h < 50 and hp > 50 and ht > 70},
 
     # Default
-    {"emotion": "happy", "condition": lambda h, hp, ht: True}  # Default
+    {"emotion": "happy", "condition": lambda h, hp, ht, e: True}  # Default
 ]
 
 # ============================================================================
@@ -198,6 +201,9 @@ STAGE_THRESHOLDS = {
 
 # Display evolution for this many seconds after stage change
 EVOLUTION_DISPLAY_DURATION = 5  # Seconds
+
+# Display sleeping emotion for this many seconds after sleep action
+SLEEP_DISPLAY_DURATION = 15  # Seconds
 
 # ============================================================================
 # UPDATE INTERVALS

@@ -10,7 +10,7 @@ A digital pet for Raspberry Pi Zero 2W with e-ink display - a modern take on the
 
 - 🐣 **Pet Lifecycle**: Watch your pet grow from egg to adult through 5 distinct stages
 - ❤️ **Care System**: Feed, play, clean, and put your pet to sleep
-- 📊 **Dynamic Stats**: Hunger, happiness, and health that change over time
+- 📊 **Dynamic Stats**: Fullness, happiness, and health that change over time
 - 😊 **Emotions**: 8 different emotional states based on how well you care for your pet
 - 🎨 **Swappable Sprites**: Change your pet's appearance by replacing BMP files (no code changes!)
 - 💾 **Persistent State**: SQLite database with power-loss protection (WAL mode)
@@ -161,19 +161,19 @@ The uninstall script will:
 
 ### Care Actions
 
-- **Feed** - Reduces hunger, small happiness boost
+- **Feed** - Increases fullness, small happiness boost
 - **Play** - Increases happiness significantly
 - **Clean** - Improves health and mood
-- **Sleep** - Restores health, increases hunger
+- **Sleep** - Restores health, reduces fullness
 - **Reset Pet** - Start over with a new pet (requires confirmation)
 
 ### Pet Stats
 
 Your pet has three main stats that change over time:
 
-- **Hunger** (0-100): Increases +1 per minute. Feed your pet to reduce it.
+- **Fullness** (0-100): Decreases -1 per minute. Feed your pet to increase it.
 - **Happiness** (0-100): Decreases -0.5 per minute. Play with your pet to increase it.
-- **Health** (0-100): Degrades when hungry (>80) or sad (<20). Recovers when well-fed and happy.
+- **Health** (0-100): Degrades when hungry (fullness <20) or sad (happiness <20). Recovers when well-fed and happy.
 
 ⚠️ **Warning**: If health reaches 0, your pet dies! Take good care of it!
 
