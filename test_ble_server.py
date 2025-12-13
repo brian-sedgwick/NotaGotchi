@@ -30,6 +30,7 @@ try:
     from bluez_peripheral.gatt.characteristic import characteristic, CharacteristicFlags
     from bluez_peripheral.advert import Advertisement
     from bluez_peripheral.agent import NoIoAgent
+    from bluez_peripheral.util import get_message_bus
 except ImportError:
     print("ERROR: bluez-peripheral library not installed")
     print("Install with: pip3 install bluez-peripheral")
@@ -139,7 +140,14 @@ class NotaGotchiServer:
         print(f"{'='*60}\n")
 
         try:
+            # Get system bus for BlueZ communication
+            from bluez_peripheral.util import get_message_bus
+
+            print("✅ Connecting to system D-Bus...")
+            bus = await get_message_bus()
+
             # Register agent for handling pairing (no input/output)
+            print("✅ Registering pairing agent...")
             agent = NoIoAgent()
 
             # Create GATT service
@@ -148,7 +156,7 @@ class NotaGotchiServer:
 
             # Register the service with BlueZ
             print("✅ Registering service with BlueZ...")
-            await self.service.register()
+            await self.service.register(bus)
             print(f"   - Device Info characteristic: {config.DEVICE_INFO_CHAR_UUID}")
             print(f"   - Message Inbox characteristic: {config.MESSAGE_INBOX_CHAR_UUID}")
 
