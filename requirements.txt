@@ -16,5 +16,6 @@ Pillow>=9.4.0
 
 # Bluetooth Low Energy (for social features)
 bleak>=0.21.0
+bluez-peripheral>=0.1.9
 
 # Note: sqlite3 is included in Python standard library (no separate install needed)
