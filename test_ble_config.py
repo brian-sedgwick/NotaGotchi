@@ -22,7 +22,7 @@ MESSAGE_OUTBOX_CHAR_UUID = "12345678-1234-5678-1234-56789abcdef3"
 # BLE CONFIGURATION
 # ============================================================================
 # Advertising settings
-DEVICE_NAME_PREFIX = "NotaGotchi"
+DEVICE_NAME_PREFIX = "notagotchi"
 ADVERTISING_INTERVAL_MS = 1000  # 1 second
 
 # Scanning settings
