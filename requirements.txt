@@ -14,4 +14,7 @@ pi-ina219>=1.4.0
 # Image Processing and Display
 Pillow>=9.4.0
 
+# Bluetooth Low Energy (for social features)
+bleak>=0.21.0
+
 # Note: sqlite3 is included in Python standard library (no separate install needed)
