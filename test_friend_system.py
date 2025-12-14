@@ -48,7 +48,8 @@ def create_test_database(pet_name: str) -> str:
         os.remove(db_path)
 
     # Create connection and initialize tables
-    conn = sqlite3.connect(db_path)
+    # check_same_thread=False allows connection to be used across threads (safe with WAL mode)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
 
     # Create friends table
