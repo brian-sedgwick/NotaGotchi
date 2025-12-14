@@ -256,6 +256,49 @@ MAIN_MENU = [
 ]
 
 # ============================================================================
+# WIFI COMMUNICATION
+# ============================================================================
+WIFI_SERVICE_TYPE = "_notagotchi._tcp.local."
+WIFI_PORT = 5555
+WIFI_DISCOVERY_TIMEOUT = 5.0       # seconds
+WIFI_CONNECTION_TIMEOUT = 10.0     # seconds
+WIFI_MESSAGE_MAX_SIZE = 8192       # bytes (8KB)
+MESSAGE_ENCODING = "utf-8"
+
+# Service properties for mDNS advertisement
+SERVICE_PROPERTIES = {
+    "version": "1.0",
+    "protocol": "notagotchi"
+}
+
+# Device identification
+DEVICE_ID_PREFIX = "notagotchi"    # Creates "notagotchi_PetName"
+
+# ============================================================================
+# MESSAGING
+# ============================================================================
+MESSAGE_RETRY_MAX_ATTEMPTS = 10
+MESSAGE_RETRY_INITIAL_DELAY = 30   # seconds
+MESSAGE_RETRY_MAX_DELAY = 1800     # seconds (30 minutes)
+MESSAGE_EXPIRATION_DAYS = 30
+MESSAGE_MAX_LENGTH = 200
+MESSAGE_INBOX_LIMIT = 100          # per friend
+
+# ============================================================================
+# FRIEND MANAGEMENT
+# ============================================================================
+FRIEND_REQUEST_EXPIRATION_HOURS = 24
+MAX_FRIENDS = 50
+
+# ============================================================================
+# CONTENT (EMOJI & PRESETS)
+# ============================================================================
+EMOJI_IMAGE_SIZE = 16              # 16x16 pixels
+EMOJI_FILE_PATH = os.path.join(RESOURCES_DIR, "images", "emojis")
+EMOJI_JSON_PATH = os.path.join(RESOURCES_DIR, "emojis.json")
+PRESET_JSON_PATH = os.path.join(RESOURCES_DIR, "preset_messages.json")
+
+# ============================================================================
 # MISC
 # ============================================================================
 DEFAULT_PET_NAME = "Pet"

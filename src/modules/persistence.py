@@ -111,6 +111,75 @@ class DatabaseManager:
             )
         ''')
 
+        # Friends Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS friends (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_name TEXT NOT NULL UNIQUE,
+                pet_name TEXT NOT NULL,
+                last_ip TEXT,
+                last_port INTEGER,
+                last_seen REAL,
+                friendship_established REAL NOT NULL,
+                created_at REAL NOT NULL DEFAULT (julianday('now'))
+            )
+        ''')
+
+        # Friend Requests Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS friend_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                from_device_name TEXT NOT NULL,
+                from_pet_name TEXT NOT NULL,
+                from_ip TEXT NOT NULL,
+                from_port INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                request_time REAL NOT NULL,
+                response_time REAL,
+                expires_at REAL NOT NULL,
+                created_at REAL NOT NULL DEFAULT (julianday('now')),
+                UNIQUE(from_device_name)
+            )
+        ''')
+
+        # Messages Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT NOT NULL UNIQUE,
+                from_device_name TEXT NOT NULL,
+                from_pet_name TEXT NOT NULL,
+                to_device_name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                content_type TEXT NOT NULL DEFAULT 'text',
+                is_read INTEGER NOT NULL DEFAULT 0,
+                received_at REAL NOT NULL,
+                read_at REAL,
+                created_at REAL NOT NULL DEFAULT (julianday('now')),
+                FOREIGN KEY (from_device_name) REFERENCES friends(device_name)
+            )
+        ''')
+
+        # Message Queue Table (for outgoing messages)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS message_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT NOT NULL UNIQUE,
+                to_device_name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                content_type TEXT NOT NULL DEFAULT 'text',
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                last_attempt REAL,
+                next_retry REAL,
+                created_at REAL NOT NULL,
+                delivered_at REAL,
+                failed_at REAL,
+                error_message TEXT,
+                FOREIGN KEY (to_device_name) REFERENCES friends(device_name)
+            )
+        ''')
+
         # Create indexes for performance
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_pet_active
@@ -120,6 +189,26 @@ class DatabaseManager:
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_history_pet
             ON pet_history(pet_id, timestamp)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_friends_device
+            ON friends(device_name)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_friend_requests_status
+            ON friend_requests(status, expires_at)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_messages_unread
+            ON messages(to_device_name, is_read, received_at)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_message_queue_status
+            ON message_queue(status, next_retry)
         ''')
 
         self.connection.commit()
