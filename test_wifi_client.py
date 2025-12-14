@@ -89,6 +89,9 @@ def send_message(
         print(f"📤 Sending message...")
         client_socket.sendall(message_bytes)
 
+        # Signal we're done sending (but keep connection open for response)
+        client_socket.shutdown(socket.SHUT_WR)
+
         # Wait for acknowledgment
         print(f"⏳ Waiting for acknowledgment...")
         response_data = client_socket.recv(1024)
