@@ -46,9 +46,8 @@ class WiFiManager:
         self.server_thread = None
         self.running = False
 
-        # Zeroconf/mDNS
-        self.zeroconf = None
-        self.service_info = None
+        # mDNS via avahi-publish-service
+        self.avahi_publish_process = None
 
         # Callbacks
         self.message_callbacks: List[Callable] = []
@@ -115,10 +114,14 @@ class WiFiManager:
         self.running = False
 
         try:
-            # Unregister mDNS
-            if self.zeroconf and self.service_info:
-                self.zeroconf.unregister_service(self.service_info)
-                self.zeroconf.close()
+            # Stop avahi-publish-service process
+            if self.avahi_publish_process:
+                self.avahi_publish_process.terminate()
+                try:
+                    self.avahi_publish_process.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    self.avahi_publish_process.kill()
+                print("mDNS advertising stopped")
 
             # Close server socket
             if self.server_socket:
@@ -339,40 +342,42 @@ class WiFiManager:
         return None
 
     def _setup_mdns(self, local_ip: str) -> bool:
-        """Setup mDNS service advertisement"""
+        """
+        Setup mDNS service advertisement via avahi-publish-service
+
+        Uses avahi-daemon (system service) instead of python-zeroconf
+        to avoid port 5353 conflicts.
+        """
         try:
-            from zeroconf import Zeroconf, ServiceInfo
+            # Build TXT record from service properties
+            txt_records = []
+            for key, value in config.SERVICE_PROPERTIES.items():
+                txt_records.append(f"{key}={value}")
 
-            # Create zeroconf instance with explicit interface
-            self.zeroconf = Zeroconf(interfaces=[local_ip])
+            # avahi-publish-service command
+            # Format: avahi-publish-service <name> <type> <port> [TXT records...]
+            cmd = [
+                'avahi-publish-service',
+                self.device_name,  # Service name
+                config.WIFI_SERVICE_TYPE,  # Service type
+                str(self.port),  # Port
+            ]
 
-            # Prepare service properties
-            properties = {
-                k.encode('utf-8'): v.encode('utf-8') if isinstance(v, str) else str(v).encode('utf-8')
-                for k, v in config.SERVICE_PROPERTIES.items()
-            }
+            # Add TXT records if any
+            cmd.extend(txt_records)
 
-            # Convert IP to bytes
-            ip_bytes = socket.inet_aton(local_ip)
-
-            # Create service info
-            service_name = f"{self.device_name}.{config.WIFI_SERVICE_TYPE}"
-            self.service_info = ServiceInfo(
-                type_=config.WIFI_SERVICE_TYPE,
-                name=service_name,
-                addresses=[ip_bytes],
-                port=self.port,
-                properties=properties,
-                server=f"{self.device_name}.local."
+            # Start avahi-publish-service as background process
+            self.avahi_publish_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
             )
 
-            # Register service
-            self.zeroconf.register_service(self.service_info)
-            print(f"✅ mDNS advertising: {service_name}")
+            print(f"✅ mDNS advertising: {self.device_name}.{config.WIFI_SERVICE_TYPE}")
             return True
 
-        except ImportError:
-            print("⚠️  zeroconf library not available")
+        except FileNotFoundError:
+            print("⚠️  avahi-publish-service not found. Install with: sudo apt-get install avahi-utils")
             return False
         except Exception as e:
             print(f"⚠️  mDNS setup error: {e}")
