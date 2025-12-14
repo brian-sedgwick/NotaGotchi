@@ -150,10 +150,15 @@ class WiFiManager:
         """
         duration = duration or config.WIFI_DISCOVERY_TIMEOUT
 
+        # Strip .local. suffix if present (avahi-browse works either way, but cleaner without)
+        service_type = config.WIFI_SERVICE_TYPE.rstrip('.')
+        if service_type.endswith('.local'):
+            service_type = service_type[:-6]  # Remove '.local'
+
         # Run avahi-browse with parseable output
         cmd = [
             'avahi-browse',
-            config.WIFI_SERVICE_TYPE,
+            service_type,
             '-t',  # Terminate after dumping
             '-r',  # Resolve services
             '-p'   # Parseable output
@@ -367,12 +372,17 @@ class WiFiManager:
             for key, value in config.SERVICE_PROPERTIES.items():
                 txt_records.append(f"{key}={value}")
 
+            # Strip .local. suffix if present (avahi-publish-service adds it automatically)
+            service_type = config.WIFI_SERVICE_TYPE.rstrip('.')
+            if service_type.endswith('.local'):
+                service_type = service_type[:-6]  # Remove '.local'
+
             # avahi-publish-service command
             # Format: avahi-publish-service <name> <type> <port> [TXT records...]
             cmd = [
                 'avahi-publish-service',
                 self.device_name,  # Service name
-                config.WIFI_SERVICE_TYPE,  # Service type
+                service_type,  # Service type (without .local.)
                 str(self.port),  # Port
             ]
 
