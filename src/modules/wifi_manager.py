@@ -160,12 +160,25 @@ class WiFiManager:
         ]
 
         try:
+            print(f"DEBUG: Running discovery command: {' '.join(cmd)}")
+            print(f"DEBUG: Timeout: {duration} seconds")
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=duration
             )
+
+            print(f"DEBUG: Return code: {result.returncode}")
+            print(f"DEBUG: Stdout lines: {len(result.stdout.split(chr(10)))}")
+            if result.stderr:
+                print(f"DEBUG: Stderr: {result.stderr}")
+
+            # Show raw output for debugging
+            print(f"DEBUG: Raw avahi-browse output:")
+            print(result.stdout)
+            print("DEBUG: End of raw output")
 
             devices = {}
 
@@ -366,14 +379,32 @@ class WiFiManager:
             # Add TXT records if any
             cmd.extend(txt_records)
 
+            print(f"DEBUG: Running command: {' '.join(cmd)}")
+
             # Start avahi-publish-service as background process
+            # Don't suppress output initially so we can debug
             self.avahi_publish_process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
             )
 
+            # Give it a moment to start
+            time.sleep(0.5)
+
+            # Check if process is still running
+            if self.avahi_publish_process.poll() is not None:
+                # Process terminated - read error output
+                stdout, stderr = self.avahi_publish_process.communicate()
+                print(f"❌ avahi-publish-service failed:")
+                if stderr:
+                    print(f"   Error: {stderr.decode()}")
+                if stdout:
+                    print(f"   Output: {stdout.decode()}")
+                return False
+
             print(f"✅ mDNS advertising: {self.device_name}.{config.WIFI_SERVICE_TYPE}")
+            print(f"   Process PID: {self.avahi_publish_process.pid}")
             return True
 
         except FileNotFoundError:
@@ -381,6 +412,8 @@ class WiFiManager:
             return False
         except Exception as e:
             print(f"⚠️  mDNS setup error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def _server_loop(self):
