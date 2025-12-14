@@ -11,6 +11,7 @@ Usage:
 
 import time
 import sys
+import socket
 from typing import Dict, List
 import test_wifi_config as config
 
@@ -20,6 +21,31 @@ except ImportError:
     print("ERROR: zeroconf library not installed")
     print("Install with: pip3 install zeroconf")
     sys.exit(1)
+
+
+def get_local_ip():
+    """Get the local IP address for WiFi interface"""
+    try:
+        # Try to get IP from wlan0
+        import subprocess
+        result = subprocess.run(['ip', '-4', 'addr', 'show', 'wlan0'],
+                              capture_output=True, text=True)
+        for line in result.stdout.split('\n'):
+            if 'inet ' in line:
+                ip = line.strip().split()[1].split('/')[0]
+                return ip
+    except:
+        pass
+
+    # Fallback method
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return None
 
 
 class NotaGotchiListener(ServiceListener):
@@ -83,10 +109,22 @@ def discover_devices(duration_seconds: float = config.DISCOVERY_DURATION_SECONDS
     print(f"NotaGotchi Wi-Fi Discovery Test")
     print(f"{'='*60}")
     print(f"Service Type: {config.SERVICE_TYPE}")
+
+    # Get local IP and bind to it
+    local_ip = get_local_ip()
+    if local_ip:
+        print(f"Binding to interface: {local_ip}")
+    else:
+        print("Using default interface")
+
     print(f"Scanning for {duration_seconds} seconds...\n")
 
-    # Create Zeroconf instance
-    zc = Zeroconf()
+    # Create Zeroconf instance with explicit interface
+    if local_ip:
+        zc = Zeroconf(interfaces=[local_ip])
+    else:
+        zc = Zeroconf()
+
     listener = NotaGotchiListener()
 
     # Start browsing for services

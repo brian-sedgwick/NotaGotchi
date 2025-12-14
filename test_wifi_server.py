@@ -78,7 +78,8 @@ class NotaGotchiServer:
 
             # Setup mDNS advertisement
             print("\n✅ Setting up mDNS advertisement...")
-            self.zeroconf = Zeroconf()
+            print(f"   Binding to interface: {local_ip}")
+            self.zeroconf = Zeroconf(interfaces=[local_ip])
 
             # Create service info
             service_name = f"{self.device_name}.{config.SERVICE_TYPE}"
