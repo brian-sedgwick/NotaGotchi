@@ -17,7 +17,7 @@ Implements the complete friend request protocol:
 
 import time
 import json
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any, List
 from . import config
 from .wifi_manager import WiFiManager
 from .friend_manager import FriendManager
@@ -31,7 +31,7 @@ class SocialCoordinator:
     """
 
     def __init__(self, wifi_manager: WiFiManager, friend_manager: FriendManager,
-                 own_pet_name: str):
+                 own_pet_name: str, message_manager=None):
         """
         Initialize Social Coordinator
 
@@ -39,10 +39,12 @@ class SocialCoordinator:
             wifi_manager: WiFiManager instance
             friend_manager: FriendManager instance
             own_pet_name: This pet's name
+            message_manager: MessageManager instance (optional)
         """
         self.wifi = wifi_manager
         self.friends = friend_manager
         self.own_pet_name = own_pet_name
+        self.messages = message_manager  # Optional MessageManager
 
         # Callbacks for UI notifications
         self.on_friend_request_received: Optional[Callable] = None
@@ -176,9 +178,12 @@ class SocialCoordinator:
         Discover NotaGotchi devices on the network
 
         Returns:
-            List of discovered devices (not filtered by friendship)
+            List of discovered devices (not filtered by friendship, excludes self)
         """
-        return self.wifi.discover_devices()
+        all_devices = self.wifi.discover_devices()
+
+        # Filter out ourselves
+        return [d for d in all_devices if d['name'] != self.wifi.device_name]
 
     def discover_new_devices(self) -> list:
         """
@@ -187,14 +192,14 @@ class SocialCoordinator:
         Useful for "Find Friends" screen
 
         Returns:
-            List of discovered devices that aren't friends yet
+            List of discovered devices that aren't friends yet (excludes self)
         """
         all_devices = self.wifi.discover_devices()
 
-        # Filter out devices that are already friends
+        # Filter out ourselves and devices that are already friends
         new_devices = []
         for device in all_devices:
-            if not self.friends.is_friend(device['name']):
+            if device['name'] != self.wifi.device_name and not self.friends.is_friend(device['name']):
                 new_devices.append(device)
 
         return new_devices
@@ -340,10 +345,13 @@ class SocialCoordinator:
     def _handle_chat_message(self, message_data: Dict, sender_ip: str):
         """
         Handle incoming chat message
-
-        Placeholder for Phase 2 (Messaging System)
         """
         from_device_name = message_data.get('from_device_name')
+        from_pet_name = message_data.get('from_pet_name', 'Unknown')
+        message_id = message_data.get('message_id')
+        content = message_data.get('content', '')
+        content_type = message_data.get('content_type', 'text')
+        timestamp = message_data.get('timestamp', time.time())
 
         # Verify sender is a friend
         if not self.friends.is_friend(from_device_name):
@@ -354,11 +362,69 @@ class SocialCoordinator:
         from_port = message_data.get('from_port', config.WIFI_PORT)
         self.friends.update_friend_contact(from_device_name, sender_ip, from_port)
 
-        # Notify UI (Phase 2 implementation)
+        # Store message if MessageManager available
+        if self.messages:
+            self.messages.receive_message(
+                from_device_name,
+                from_pet_name,
+                message_id,
+                content,
+                content_type,
+                timestamp
+            )
+        else:
+            # Fallback: just print
+            print(f"📬 Message from {from_pet_name}: {content}")
+
+        # Notify UI
         if self.on_message_received:
             self.on_message_received(message_data, sender_ip)
-        else:
-            print(f"📬 Message from {message_data.get('from_pet_name')}: {message_data.get('content')}")
+
+    # ========================================================================
+    # MESSAGING (if MessageManager available)
+    # ========================================================================
+
+    def send_message(self, to_device_name: str, content: str,
+                    content_type: str = "text") -> Optional[str]:
+        """
+        Send a message to a friend
+
+        Args:
+            to_device_name: Friend's device name
+            content: Message content
+            content_type: Type (text, emoji, preset)
+
+        Returns:
+            Message ID if queued, None if error
+        """
+        if not self.messages:
+            print("❌ MessageManager not initialized")
+            return None
+
+        return self.messages.send_message(to_device_name, content, content_type)
+
+    def get_conversation(self, friend_device_name: str, limit: int = 50) -> List[Dict]:
+        """Get conversation history with a friend"""
+        if not self.messages:
+            return []
+        return self.messages.get_conversation_history(friend_device_name, limit)
+
+    def get_inbox(self, limit: int = 100) -> List[Dict]:
+        """Get inbox (all received messages)"""
+        if not self.messages:
+            return []
+        return self.messages.get_inbox(limit)
+
+    def get_unread_count(self, friend_device_name: str = None) -> int:
+        """Get unread message count"""
+        if not self.messages:
+            return 0
+        return self.messages.get_unread_count(friend_device_name)
+
+    def mark_messages_read(self, message_id: str = None, friend_device_name: str = None):
+        """Mark messages as read"""
+        if self.messages:
+            self.messages.mark_as_read(message_id, friend_device_name)
 
     # ========================================================================
     # UTILITY METHODS

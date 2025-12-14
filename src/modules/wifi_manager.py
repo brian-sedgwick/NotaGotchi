@@ -165,25 +165,12 @@ class WiFiManager:
         ]
 
         try:
-            print(f"DEBUG: Running discovery command: {' '.join(cmd)}")
-            print(f"DEBUG: Timeout: {duration} seconds")
-
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=duration
             )
-
-            print(f"DEBUG: Return code: {result.returncode}")
-            print(f"DEBUG: Stdout lines: {len(result.stdout.split(chr(10)))}")
-            if result.stderr:
-                print(f"DEBUG: Stderr: {result.stderr}")
-
-            # Show raw output for debugging
-            print(f"DEBUG: Raw avahi-browse output:")
-            print(result.stdout)
-            print("DEBUG: End of raw output")
 
             devices = {}
 
@@ -204,8 +191,8 @@ class WiFiManager:
                 port = parts[8]
                 txt = parts[9] if len(parts) > 9 else ""
 
-                # Only process IPv4 for now
-                if address and port and protocol == 'IPv4':
+                # Only process IPv4 for now, skip localhost/loopback
+                if address and port and protocol == 'IPv4' and address != '127.0.0.1':
                     device_info = {
                         'name': name,
                         'address': address,
@@ -389,13 +376,10 @@ class WiFiManager:
             # Add TXT records if any
             cmd.extend(txt_records)
 
-            print(f"DEBUG: Running command: {' '.join(cmd)}")
-
             # Start avahi-publish-service as background process
-            # Don't suppress output initially so we can debug
             self.avahi_publish_process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE
             )
 
@@ -405,16 +389,13 @@ class WiFiManager:
             # Check if process is still running
             if self.avahi_publish_process.poll() is not None:
                 # Process terminated - read error output
-                stdout, stderr = self.avahi_publish_process.communicate()
+                _, stderr = self.avahi_publish_process.communicate()
                 print(f"❌ avahi-publish-service failed:")
                 if stderr:
                     print(f"   Error: {stderr.decode()}")
-                if stdout:
-                    print(f"   Output: {stdout.decode()}")
                 return False
 
-            print(f"✅ mDNS advertising: {self.device_name}.{config.WIFI_SERVICE_TYPE}")
-            print(f"   Process PID: {self.avahi_publish_process.pid}")
+            print(f"✅ mDNS advertising: {self.device_name}")
             return True
 
         except FileNotFoundError:
