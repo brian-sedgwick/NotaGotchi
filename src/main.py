@@ -21,6 +21,10 @@ from modules.display import DisplayManager
 from modules.input_handler import InputHandler, InputEvent
 from modules.screen_manager import ScreenManager
 from modules.quote_manager import QuoteManager
+from modules.wifi_manager import WiFiManager
+from modules.friend_manager import FriendManager
+from modules.messaging import MessageManager
+from modules.social_coordinator import SocialCoordinator
 
 
 class NotAGotchiApp:
@@ -47,6 +51,12 @@ class NotAGotchiApp:
         self.screen_manager = ScreenManager()
         self.quote_manager = QuoteManager(config.QUOTES_FILE)
 
+        # Social features (WiFi + Friends + Messaging)
+        self.wifi_manager = None
+        self.friend_manager = None
+        self.message_manager = None
+        self.social_coordinator = None
+
         # Game state
         self.pet = None
         self.last_update_time = time.time()
@@ -67,8 +77,72 @@ class NotAGotchiApp:
         print("Loading sprites...")
         self.sprite_manager.preload_all_sprites()
 
+        # Initialize social features (WiFi requires pet to be loaded)
+        self._initialize_social_features()
+
         print("=" * 50)
         print("Initialization complete!\n")
+
+    def _initialize_social_features(self):
+        """Initialize WiFi, friends, and messaging"""
+        try:
+            # Get device name (will use pet name once available)
+            if self.pet:
+                device_name = f"{config.DEVICE_ID_PREFIX}_{self.pet.name}"
+                pet_name = self.pet.name
+            else:
+                device_name = f"{config.DEVICE_ID_PREFIX}_NotAGotchi"
+                pet_name = "NotAGotchi"
+
+            print("\nInitializing social features...")
+            print(f"Device name: {device_name}")
+
+            # Initialize managers
+            self.wifi_manager = WiFiManager(device_name)
+            self.friend_manager = FriendManager(self.db.connection, device_name)
+            self.message_manager = MessageManager(
+                self.db.connection,
+                self.wifi_manager,
+                self.friend_manager,
+                device_name
+            )
+            self.social_coordinator = SocialCoordinator(
+                self.wifi_manager,
+                self.friend_manager,
+                pet_name,
+                self.message_manager
+            )
+
+            # Start WiFi server
+            if self.wifi_manager.start_server():
+                print("✅ WiFi server started")
+            else:
+                print("⚠️  WiFi server failed to start (social features disabled)")
+                return
+
+            # Start message queue processor
+            self.message_manager.start_queue_processor()
+            print("✅ Message queue processor started")
+
+            # Register message callback
+            def on_message_received(message_data, sender_ip):
+                from_pet = message_data.get('from_pet_name', 'Unknown')
+                content = message_data.get('content', '')
+                print(f"\n📬 Message from {from_pet}: {content}")
+
+            self.social_coordinator.register_ui_callbacks(
+                on_message=on_message_received
+            )
+
+            print("✅ Social features initialized")
+
+        except Exception as e:
+            print(f"⚠️  Failed to initialize social features: {e}")
+            print("Continuing without social features...")
+            self.wifi_manager = None
+            self.friend_manager = None
+            self.message_manager = None
+            self.social_coordinator = None
 
     def _register_actions(self):
         """Register callbacks for menu actions"""
@@ -422,6 +496,15 @@ class NotAGotchiApp:
         if self.pet:
             self._save_pet()
             print("Pet state saved")
+
+        # Stop social features
+        if self.message_manager:
+            self.message_manager.stop_queue_processor()
+            print("Message queue processor stopped")
+
+        if self.wifi_manager:
+            self.wifi_manager.stop_server()
+            print("WiFi server stopped")
 
         # Clean up resources
         self.display.close()
