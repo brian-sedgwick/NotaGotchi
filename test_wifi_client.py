@@ -25,7 +25,7 @@ import time
 import sys
 from typing import Dict, Optional
 import test_wifi_config as config
-from test_wifi_discovery import discover_devices
+from test_wifi_discovery_avahi import discover_via_avahi as discover_devices
 
 
 def send_message(

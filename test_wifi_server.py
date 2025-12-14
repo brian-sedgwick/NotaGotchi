@@ -90,9 +90,14 @@ class NotaGotchiServer:
                 for k, v in config.SERVICE_PROPERTIES.items()
             }
 
+            # Convert IP to bytes
+            import ipaddress
+            ip_bytes = socket.inet_aton(local_ip)
+
             self.service_info = ServiceInfo(
                 type_=config.SERVICE_TYPE,
                 name=service_name,
+                addresses=[ip_bytes],  # Explicitly specify IP address
                 port=self.port,
                 properties=properties,
                 server=f"{self.device_name}.local."
