@@ -464,7 +464,7 @@ class NotAGotchiApp:
             print("Social features not available")
             return
 
-        from_name = request.get('from_pet_name', 'Unknown')
+        from_name = request.get('pet_name', 'Unknown')
 
         def accept_request():
             print(f"Accepting friend request from {from_name}")
