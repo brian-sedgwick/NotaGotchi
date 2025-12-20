@@ -9,6 +9,7 @@ import sys
 import os
 import time
 import signal
+import json
 
 # Add modules directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -76,6 +77,10 @@ class NotAGotchiApp:
         # Preload sprites
         print("Loading sprites...")
         self.sprite_manager.preload_all_sprites()
+
+        # Load preset messages and emojis
+        self.preset_messages = self._load_json(config.PRESET_JSON_PATH)
+        self.emojis = self._load_json(config.EMOJI_JSON_PATH)
 
         # Initialize social features (WiFi requires pet to be loaded)
         self._initialize_social_features()
@@ -569,8 +574,12 @@ class NotAGotchiApp:
             image = self._render_friend_requests_screen()
         elif self.screen_manager.is_message_type_menu():
             image = self._render_message_type_menu_screen()
+        elif self.screen_manager.is_emoji_category():
+            image = self._render_emoji_category_screen()
         elif self.screen_manager.is_emoji_select():
             image = self._render_emoji_select_screen()
+        elif self.screen_manager.is_preset_category():
+            image = self._render_preset_category_screen()
         elif self.screen_manager.is_preset_select():
             image = self._render_preset_select_screen()
         elif self.screen_manager.is_text_compose():
@@ -670,6 +679,15 @@ class NotAGotchiApp:
             state['message'],
             state['selected']
         )
+
+    def _load_json(self, path: str) -> dict:
+        """Load JSON file, return empty dict on error"""
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: Failed to load {path}: {e}")
+            return {}
 
     def _get_pet_sprite(self):
         """Helper to get current pet sprite"""
@@ -774,15 +792,52 @@ class NotAGotchiApp:
             online_friends=online_friends
         )
 
+    def _render_emoji_category_screen(self):
+        """Render emoji category selection screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = self._get_online_friends_count()
+
+        state = self.screen_manager.get_emoji_category_state()
+        return self.display.draw_emoji_category_select(
+            state['categories'],
+            state['selected_index'],
+            state['friend_name'],
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
+        )
+
     def _render_emoji_select_screen(self):
         """Render emoji selection screen"""
         pet_sprite = self._get_pet_sprite()
         wifi_connected = self._get_wifi_status()
         online_friends = self._get_online_friends_count()
 
+        # Set items from selected category
+        category = self.screen_manager.selected_emoji_category
+        if category and category in self.emojis:
+            self.screen_manager.set_emoji_items(self.emojis[category])
+
         state = self.screen_manager.get_emoji_select_state()
         return self.display.draw_emoji_select(
             state['emojis'],
+            state['selected_index'],
+            state['friend_name'],
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
+        )
+
+    def _render_preset_category_screen(self):
+        """Render preset category selection screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = self._get_online_friends_count()
+
+        state = self.screen_manager.get_preset_category_state()
+        return self.display.draw_preset_category_select(
+            state['categories'],
             state['selected_index'],
             state['friend_name'],
             pet_sprite,
@@ -795,6 +850,11 @@ class NotAGotchiApp:
         pet_sprite = self._get_pet_sprite()
         wifi_connected = self._get_wifi_status()
         online_friends = self._get_online_friends_count()
+
+        # Set items from selected category
+        category = self.screen_manager.selected_preset_category
+        if category and category in self.preset_messages:
+            self.screen_manager.set_preset_items(self.preset_messages[category])
 
         state = self.screen_manager.get_preset_select_state()
         return self.display.draw_preset_select(

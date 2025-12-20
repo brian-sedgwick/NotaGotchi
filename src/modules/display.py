@@ -801,6 +801,62 @@ class DisplayManager:
 
         return image
 
+    def draw_emoji_category_select(self, categories: list, selected_index: int,
+                                   friend_name: str, pet_sprite: Optional[Image.Image],
+                                   wifi_connected: bool = False,
+                                   online_friends: int = 0) -> Image.Image:
+        """
+        Draw emoji category selection screen
+
+        Args:
+            categories: List of (key, display_name) tuples
+            selected_index: Currently selected category index
+            friend_name: Name of friend to send to
+            pet_sprite: Pet sprite image
+            wifi_connected: WiFi connection status
+            online_friends: Number of online friends
+
+        Returns:
+            PIL Image of category select screen
+        """
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw header
+        self._draw_header(draw, "Emoji", "", wifi_connected, online_friends)
+
+        # Draw pet sprite on left (if available)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+
+        # Draw category list on right side
+        x = config.STATUS_AREA_X + 5
+        y = config.STATUS_AREA_Y + 2
+        item_height = 16
+
+        # Add Back option to categories
+        items = [(None, "< Back")] + list(categories)
+
+        visible_items = 6
+        start_idx = max(0, selected_index - visible_items + 1)
+        end_idx = min(len(items), start_idx + visible_items)
+
+        for i in range(start_idx, end_idx):
+            _, display_name = items[i]
+            y_pos = y + (i - start_idx) * item_height
+
+            if i == selected_index:
+                draw.rectangle([(x - 2, y_pos - 1),
+                              (self.width - 5, y_pos + item_height - 2)], fill=0)
+                draw.text((x, y_pos), display_name, fill=1, font=self.font_small)
+            else:
+                draw.text((x, y_pos), display_name, fill=0, font=self.font_small)
+
+        # To: friend name
+        draw.text((x, self.height - 15), f"To: {friend_name}", fill=0, font=self.font_small)
+
+        return image
+
     def draw_emoji_select(self, emojis: list, selected_index: int,
                           friend_name: str, pet_sprite: Optional[Image.Image],
                           wifi_connected: bool = False,
@@ -838,7 +894,8 @@ class DisplayManager:
         if len(emojis) > 0:
             selected_emoji = emojis[selected_index]
             draw.rectangle([(x + 20, y), (x + 80, y + 40)], outline=0, width=2)
-            draw.text((x + 35, y + 10), selected_emoji, fill=0, font=self.font_large)
+            # Use emoji font for proper Unicode emoji rendering
+            draw.text((x + 35, y + 10), selected_emoji, fill=0, font=self.font_emoji)
 
             # Show index
             draw.text((x, y + 50), f"{selected_index + 1}/{len(emojis)}", fill=0, font=self.font_small)
@@ -848,6 +905,62 @@ class DisplayManager:
 
         # Hint
         draw.text((x, self.height - 15), "Press:send Hold:back", fill=0, font=self.font_small)
+
+        return image
+
+    def draw_preset_category_select(self, categories: list, selected_index: int,
+                                    friend_name: str, pet_sprite: Optional[Image.Image],
+                                    wifi_connected: bool = False,
+                                    online_friends: int = 0) -> Image.Image:
+        """
+        Draw preset message category selection screen
+
+        Args:
+            categories: List of (key, display_name) tuples
+            selected_index: Currently selected category index
+            friend_name: Name of friend to send to
+            pet_sprite: Pet sprite image
+            wifi_connected: WiFi connection status
+            online_friends: Number of online friends
+
+        Returns:
+            PIL Image of category select screen
+        """
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw header
+        self._draw_header(draw, "Quick Msg", "", wifi_connected, online_friends)
+
+        # Draw pet sprite on left (if available)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+
+        # Draw category list on right side
+        x = config.STATUS_AREA_X + 5
+        y = config.STATUS_AREA_Y + 2
+        item_height = 14
+
+        # Add Back option to categories
+        items = [(None, "< Back")] + list(categories)
+
+        visible_items = 7
+        start_idx = max(0, selected_index - visible_items + 1)
+        end_idx = min(len(items), start_idx + visible_items)
+
+        for i in range(start_idx, end_idx):
+            _, display_name = items[i]
+            y_pos = y + (i - start_idx) * item_height
+
+            if i == selected_index:
+                draw.rectangle([(x - 2, y_pos - 1),
+                              (self.width - 5, y_pos + item_height - 2)], fill=0)
+                draw.text((x, y_pos), display_name, fill=1, font=self.font_small)
+            else:
+                draw.text((x, y_pos), display_name, fill=0, font=self.font_small)
+
+        # To: friend name
+        draw.text((x, self.height - 15), f"To: {friend_name}", fill=0, font=self.font_small)
 
         return image
 

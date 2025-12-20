@@ -41,6 +41,12 @@ class ScreenManager:
         self.selected_friend = None  # Device ID of friend to message
         self.selected_friend_name = None  # Display name of friend
         self.message_type_index = 0
+        # Category selection state
+        self.emoji_category_index = 0
+        self.selected_emoji_category = None  # Key of selected category
+        self.preset_category_index = 0
+        self.selected_preset_category = None  # Key of selected category
+        # Item selection state (within category)
         self.emoji_index = 0
         self.preset_index = 0
         self.compose_buffer = ""  # For custom text compose
@@ -83,8 +89,12 @@ class ScreenManager:
             self.friend_requests_index = 0
         elif screen_state == config.ScreenState.MESSAGE_TYPE_MENU:
             self.message_type_index = 0
+        elif screen_state == config.ScreenState.EMOJI_CATEGORY:
+            self.emoji_category_index = 0
         elif screen_state == config.ScreenState.EMOJI_SELECT:
             self.emoji_index = 0
+        elif screen_state == config.ScreenState.PRESET_CATEGORY:
+            self.preset_category_index = 0
         elif screen_state == config.ScreenState.PRESET_SELECT:
             self.preset_index = 0
         elif screen_state == config.ScreenState.TEXT_COMPOSE:
@@ -161,8 +171,12 @@ class ScreenManager:
             return self._handle_friend_requests_input(event)
         elif self.current_screen == config.ScreenState.MESSAGE_TYPE_MENU:
             return self._handle_message_type_menu_input(event)
+        elif self.current_screen == config.ScreenState.EMOJI_CATEGORY:
+            return self._handle_emoji_category_input(event)
         elif self.current_screen == config.ScreenState.EMOJI_SELECT:
             return self._handle_emoji_select_input(event)
+        elif self.current_screen == config.ScreenState.PRESET_CATEGORY:
+            return self._handle_preset_category_input(event)
         elif self.current_screen == config.ScreenState.PRESET_SELECT:
             return self._handle_preset_select_input(event)
         elif self.current_screen == config.ScreenState.TEXT_COMPOSE:
@@ -416,9 +430,9 @@ class ScreenManager:
             if action == 'back':
                 self.set_screen(config.ScreenState.FRIENDS_LIST)
             elif action == 'msg_emoji':
-                self.set_screen(config.ScreenState.EMOJI_SELECT)
+                self.set_screen(config.ScreenState.EMOJI_CATEGORY)
             elif action == 'msg_preset':
-                self.set_screen(config.ScreenState.PRESET_SELECT)
+                self.set_screen(config.ScreenState.PRESET_CATEGORY)
             elif action == 'msg_custom':
                 self.set_screen(config.ScreenState.TEXT_COMPOSE)
 
@@ -427,9 +441,36 @@ class ScreenManager:
 
         return None
 
+    def _handle_emoji_category_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on emoji category selection screen"""
+        # Items: Back (index 0) + categories
+        categories = config.EMOJI_CATEGORIES
+        total_items = len(categories) + 1  # +1 for Back
+
+        if event.type == InputEvent.TYPE_ROTATE_CW:
+            self.emoji_category_index = (self.emoji_category_index + 1) % total_items
+
+        elif event.type == InputEvent.TYPE_ROTATE_CCW:
+            self.emoji_category_index = (self.emoji_category_index - 1) % total_items
+
+        elif event.type == InputEvent.TYPE_BUTTON_PRESS:
+            if self.emoji_category_index == 0:
+                # Back selected
+                self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
+            else:
+                # Category selected - get the key
+                category_key, _ = categories[self.emoji_category_index - 1]
+                self.selected_emoji_category = category_key
+                self.set_screen(config.ScreenState.EMOJI_SELECT)
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
+
+        return None
+
     def _handle_emoji_select_input(self, event: InputEvent) -> Optional[str]:
         """Handle input on emoji selection screen"""
-        emojis = config.EMOJI_LIST
+        emojis = self.current_emoji_items if hasattr(self, 'current_emoji_items') else config.EMOJI_LIST
 
         if event.type == InputEvent.TYPE_ROTATE_CW:
             self.emoji_index = (self.emoji_index + 1) % len(emojis)
@@ -448,13 +489,40 @@ class ScreenManager:
             })
 
         elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            self.set_screen(config.ScreenState.EMOJI_CATEGORY)
+
+        return None
+
+    def _handle_preset_category_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on preset category selection screen"""
+        # Items: Back (index 0) + categories
+        categories = config.PRESET_CATEGORIES
+        total_items = len(categories) + 1  # +1 for Back
+
+        if event.type == InputEvent.TYPE_ROTATE_CW:
+            self.preset_category_index = (self.preset_category_index + 1) % total_items
+
+        elif event.type == InputEvent.TYPE_ROTATE_CCW:
+            self.preset_category_index = (self.preset_category_index - 1) % total_items
+
+        elif event.type == InputEvent.TYPE_BUTTON_PRESS:
+            if self.preset_category_index == 0:
+                # Back selected
+                self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
+            else:
+                # Category selected - get the key
+                category_key, _ = categories[self.preset_category_index - 1]
+                self.selected_preset_category = category_key
+                self.set_screen(config.ScreenState.PRESET_SELECT)
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
             self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
 
         return None
 
     def _handle_preset_select_input(self, event: InputEvent) -> Optional[str]:
         """Handle input on preset message selection screen"""
-        presets = config.MESSAGE_PRESETS
+        presets = self.current_preset_items if hasattr(self, 'current_preset_items') else config.MESSAGE_PRESETS
 
         if event.type == InputEvent.TYPE_ROTATE_CW:
             self.preset_index = (self.preset_index + 1) % len(presets)
@@ -473,7 +541,7 @@ class ScreenManager:
             })
 
         elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
-            self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
+            self.set_screen(config.ScreenState.PRESET_CATEGORY)
 
         return None
 
@@ -635,13 +703,31 @@ class ScreenManager:
         """Check if on message type menu screen"""
         return self.current_screen == config.ScreenState.MESSAGE_TYPE_MENU
 
+    def is_emoji_category(self) -> bool:
+        """Check if on emoji category screen"""
+        return self.current_screen == config.ScreenState.EMOJI_CATEGORY
+
     def is_emoji_select(self) -> bool:
         """Check if on emoji select screen"""
         return self.current_screen == config.ScreenState.EMOJI_SELECT
 
+    def is_preset_category(self) -> bool:
+        """Check if on preset category screen"""
+        return self.current_screen == config.ScreenState.PRESET_CATEGORY
+
     def is_preset_select(self) -> bool:
         """Check if on preset select screen"""
         return self.current_screen == config.ScreenState.PRESET_SELECT
+
+    def set_emoji_items(self, items: list):
+        """Set current emoji items for selection"""
+        self.current_emoji_items = items
+        self.emoji_index = 0
+
+    def set_preset_items(self, items: list):
+        """Set current preset items for selection"""
+        self.current_preset_items = items
+        self.preset_index = 0
 
     def is_text_compose(self) -> bool:
         """Check if on text compose screen"""
@@ -691,18 +777,36 @@ class ScreenManager:
             'friend_name': self.selected_friend_name
         }
 
+    def get_emoji_category_state(self) -> Dict[str, Any]:
+        """Get current emoji category state for rendering"""
+        return {
+            'categories': config.EMOJI_CATEGORIES,
+            'selected_index': self.emoji_category_index,
+            'friend_name': self.selected_friend_name
+        }
+
     def get_emoji_select_state(self) -> Dict[str, Any]:
         """Get current emoji select state for rendering"""
+        emojis = self.current_emoji_items if hasattr(self, 'current_emoji_items') else config.EMOJI_LIST
         return {
-            'emojis': config.EMOJI_LIST,
+            'emojis': emojis,
             'selected_index': self.emoji_index,
+            'friend_name': self.selected_friend_name
+        }
+
+    def get_preset_category_state(self) -> Dict[str, Any]:
+        """Get current preset category state for rendering"""
+        return {
+            'categories': config.PRESET_CATEGORIES,
+            'selected_index': self.preset_category_index,
             'friend_name': self.selected_friend_name
         }
 
     def get_preset_select_state(self) -> Dict[str, Any]:
         """Get current preset select state for rendering"""
+        presets = self.current_preset_items if hasattr(self, 'current_preset_items') else config.MESSAGE_PRESETS
         return {
-            'presets': config.MESSAGE_PRESETS,
+            'presets': presets,
             'selected_index': self.preset_index,
             'friend_name': self.selected_friend_name
         }

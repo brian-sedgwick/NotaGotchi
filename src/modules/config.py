@@ -253,7 +253,9 @@ class ScreenState:
     MESSAGE_DETAIL = "message_detail"        # View single message
     # Message composition screens
     MESSAGE_TYPE_MENU = "message_type_menu"  # Choose message type
+    EMOJI_CATEGORY = "emoji_category"        # Choose emoji category
     EMOJI_SELECT = "emoji_select"            # Pick emoji to send
+    PRESET_CATEGORY = "preset_category"      # Choose preset category
     PRESET_SELECT = "preset_select"          # Pick preset message
     TEXT_COMPOSE = "text_compose"            # Custom text entry
 
@@ -299,6 +301,26 @@ EMOJI_LIST = [
     ":)", ":(", ":D", ";)", ":P",
     "<3", "*", "!", "?", "ZZZ",
     ":O", "XD", ":/", ">:(", "^_^"
+]
+
+# Category display names for preset messages
+PRESET_CATEGORIES = [
+    ("greetings", "Greetings"),
+    ("questions", "Questions"),
+    ("responses", "Responses"),
+    ("emotions", "Emotions"),
+    ("activities", "Activities"),
+    ("fun", "Fun"),
+    ("social", "Social")
+]
+
+# Category display names for emojis
+EMOJI_CATEGORIES = [
+    ("faces", "Faces"),
+    ("symbols", "Symbols"),
+    ("food", "Food"),
+    ("animals", "Animals"),
+    ("objects", "Objects")
 ]
 
 # ============================================================================
