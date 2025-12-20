@@ -427,11 +427,10 @@ class NotAGotchiApp:
             return
 
         device_name = device.get('name', 'Unknown')
-        device_ip = device.get('ip')
 
         print(f"Sending friend request to {device_name}")
 
-        success = self.social_coordinator.send_friend_request(device_ip)
+        success = self.social_coordinator.send_friend_request(device)
 
         if success:
             print(f"Friend request sent to {device_name}")
