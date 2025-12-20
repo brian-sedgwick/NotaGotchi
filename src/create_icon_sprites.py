@@ -83,6 +83,49 @@ def create_energy_icon():
     return img
 
 
+def create_wifi_on_icon():
+    """Create WiFi connected icon (signal arcs)"""
+    img = Image.new('1', (ICON_SIZE, ICON_SIZE), 1)  # White background
+    draw = ImageDraw.Draw(img)
+
+    # Center point at bottom
+    center_x = ICON_SIZE // 2
+    center_y = ICON_SIZE - 4
+
+    # Draw three concentric arcs (signal strength)
+    # Outer arc
+    draw.arc([(2, 4), (17, 19)], start=220, end=320, fill=0, width=2)
+    # Middle arc
+    draw.arc([(5, 7), (14, 16)], start=220, end=320, fill=0, width=2)
+    # Inner arc
+    draw.arc([(8, 10), (11, 13)], start=220, end=320, fill=0, width=2)
+
+    # Center dot
+    draw.ellipse([(8, 14), (11, 17)], fill=0)
+
+    return img
+
+
+def create_wifi_off_icon():
+    """Create WiFi disconnected icon (signal arcs with X)"""
+    img = Image.new('1', (ICON_SIZE, ICON_SIZE), 1)  # White background
+    draw = ImageDraw.Draw(img)
+
+    # Draw three concentric arcs (signal strength) - same as wifi_on
+    draw.arc([(2, 4), (17, 19)], start=220, end=320, fill=0, width=2)
+    draw.arc([(5, 7), (14, 16)], start=220, end=320, fill=0, width=2)
+    draw.arc([(8, 10), (11, 13)], start=220, end=320, fill=0, width=2)
+
+    # Center dot
+    draw.ellipse([(8, 14), (11, 17)], fill=0)
+
+    # X overlay (diagonal lines)
+    draw.line([(3, 3), (16, 16)], fill=0, width=2)
+    draw.line([(16, 3), (3, 16)], fill=0, width=2)
+
+    return img
+
+
 def main():
     """Generate all icon sprites"""
     print("Creating icon sprites...")
@@ -97,6 +140,8 @@ def main():
         "happy.bmp": create_happy_icon,
         "heart.bmp": create_heart_icon,
         "energy.bmp": create_energy_icon,
+        "wifi_on.bmp": create_wifi_on_icon,
+        "wifi_off.bmp": create_wifi_off_icon,
     }
 
     for filename, create_func in icons.items():

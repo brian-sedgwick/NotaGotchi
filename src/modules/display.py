@@ -81,6 +81,12 @@ class DisplayManager:
         self.icon_heart = self._load_icon_flexible(icons_dir, "heart")
         self.icon_energy = self._load_icon_flexible(icons_dir, "energy")
 
+        # Load header status icons
+        self.icon_wifi_on = self._load_icon_flexible(icons_dir, "wifi_on")
+        self.icon_wifi_off = self._load_icon_flexible(icons_dir, "wifi_off")
+        # Reuse heart icon for friends count
+        self.icon_friends = self.icon_heart
+
         if not self.simulation_mode:
             self._initialize_display()
 
@@ -138,7 +144,8 @@ class DisplayManager:
 
     def draw_status_screen(self, pet_sprite: Optional[Image.Image],
                           pet_name: str, stats: Dict[str, int],
-                          age_display: str, quote: Optional[str] = None) -> Image.Image:
+                          age_display: str, quote: Optional[str] = None,
+                          wifi_connected: bool = False, online_friends: int = 0) -> Image.Image:
         """
         Draw the main status screen with pet and stats
 
@@ -148,6 +155,8 @@ class DisplayManager:
             stats: Dict with 'hunger', 'happiness', 'health', 'energy'
             age_display: Formatted age string (e.g., "5h" or "2d")
             quote: Optional quote to display over pet sprite
+            wifi_connected: Whether WiFi server is running
+            online_friends: Number of online friends
 
         Returns:
             PIL Image of the complete screen
@@ -157,7 +166,7 @@ class DisplayManager:
         draw = ImageDraw.Draw(image)
 
         # Draw header
-        self._draw_header(draw, pet_name, age_display)
+        self._draw_header(draw, pet_name, age_display, wifi_connected, online_friends)
 
         # Draw pet sprite (left side, 100×100)
         if pet_sprite:
@@ -183,7 +192,8 @@ class DisplayManager:
 
     def draw_menu(self, menu_items: List[Dict[str, str]],
                   selected_index: int, title: str = "Menu",
-                  pet_sprite: Optional[Image.Image] = None) -> Image.Image:
+                  pet_sprite: Optional[Image.Image] = None,
+                  wifi_connected: bool = False, online_friends: int = 0) -> Image.Image:
         """
         Draw a menu screen with pet sprite on left
 
@@ -192,6 +202,8 @@ class DisplayManager:
             selected_index: Index of currently selected item
             title: Menu title
             pet_sprite: Optional pet sprite to display on left side
+            wifi_connected: Whether WiFi server is running
+            online_friends: Number of online friends
 
         Returns:
             PIL Image of the menu screen
@@ -200,9 +212,9 @@ class DisplayManager:
         image = Image.new('1', (self.width, self.height), 1)
         draw = ImageDraw.Draw(image)
 
-        # Draw header with title
-        draw.rectangle([(0, 0), (self.width, config.HEADER_HEIGHT)], fill=0)
-        draw.text((2, 1), title, fill=1, font=self.font_small)
+        # Draw header with title (use _draw_header for consistency with status icons)
+        # Pass title as pet_name and empty age since menu doesn't show age
+        self._draw_header(draw, title, "", wifi_connected, online_friends)
 
         # Draw pet sprite on left side (same position as home screen)
         if pet_sprite:
@@ -340,8 +352,9 @@ class DisplayManager:
 
         return image
 
-    def _draw_header(self, draw: ImageDraw.Draw, pet_name: str, age: str):
-        """Draw header with pet name, age, and battery"""
+    def _draw_header(self, draw: ImageDraw.Draw, pet_name: str, age: str,
+                     wifi_connected: bool = False, online_friends: int = 0):
+        """Draw header with pet name, age, wifi status, friends count, and battery"""
         # Background
         draw.rectangle([(0, 0), (self.width, config.HEADER_HEIGHT)],
                       fill=0)
@@ -357,9 +370,58 @@ class DisplayManager:
         # Age (pushed left to make room for battery)
         age_text = f"Age: {age}"
         bbox = draw.textbbox((0, 0), age_text, font=self.font_small)
-        text_width = bbox[2] - bbox[0]
-        age_x = battery_x - text_width - 4  # 4px gap between age and battery
+        age_text_width = bbox[2] - bbox[0]
+        age_x = battery_x - age_text_width - 4  # 4px gap between age and battery
         draw.text((age_x, 1), age_text, fill=1, font=self.font_small)
+
+        # Friends count with heart icon (left of age)
+        friends_text = str(online_friends)
+        bbox = draw.textbbox((0, 0), friends_text, font=self.font_small)
+        friends_text_width = bbox[2] - bbox[0]
+        header_icon_size = 10
+
+        # Position: icon then text, to left of age
+        friends_text_x = age_x - friends_text_width - 4  # 4px gap from age
+        friends_icon_x = friends_text_x - header_icon_size - 1  # 1px gap between icon and text
+
+        # Draw friends icon (heart) - need to invert for white-on-black header
+        if self.icon_friends:
+            from PIL import ImageOps
+            icon = self.icon_friends.resize((header_icon_size, header_icon_size), Image.Resampling.NEAREST)
+            # Invert colors for header (black bg needs white icon)
+            icon = ImageOps.invert(icon.convert('L')).convert('1')
+            # Create a temporary image to paste the icon
+            # We can't paste directly onto draw, need to work with the image
+            pass  # Will handle this via draw operations instead
+
+        # Draw heart shape manually for header (simpler and works with draw)
+        heart_x = friends_icon_x
+        heart_y = 2
+        # Simple small heart: two circles and triangle
+        draw.ellipse([(heart_x, heart_y + 1), (heart_x + 4, heart_y + 5)], fill=1)
+        draw.ellipse([(heart_x + 4, heart_y + 1), (heart_x + 8, heart_y + 5)], fill=1)
+        draw.polygon([(heart_x, heart_y + 4), (heart_x + 8, heart_y + 4), (heart_x + 4, heart_y + 9)], fill=1)
+
+        # Draw friends count text
+        draw.text((friends_text_x, 1), friends_text, fill=1, font=self.font_small)
+
+        # WiFi icon (left of friends)
+        wifi_x = friends_icon_x - header_icon_size - 4  # 4px gap from friends icon
+
+        # Draw WiFi icon manually for header
+        if wifi_connected:
+            # WiFi on - three arcs and dot
+            draw.arc([(wifi_x, 1), (wifi_x + 9, 10)], start=220, end=320, fill=1, width=1)
+            draw.arc([(wifi_x + 2, 3), (wifi_x + 7, 8)], start=220, end=320, fill=1, width=1)
+            draw.ellipse([(wifi_x + 3, 7), (wifi_x + 5, 9)], fill=1)
+        else:
+            # WiFi off - arcs with X
+            draw.arc([(wifi_x, 1), (wifi_x + 9, 10)], start=220, end=320, fill=1, width=1)
+            draw.arc([(wifi_x + 2, 3), (wifi_x + 7, 8)], start=220, end=320, fill=1, width=1)
+            draw.ellipse([(wifi_x + 3, 7), (wifi_x + 5, 9)], fill=1)
+            # X overlay
+            draw.line([(wifi_x, 1), (wifi_x + 9, 10)], fill=1, width=1)
+            draw.line([(wifi_x + 9, 1), (wifi_x, 10)], fill=1, width=1)
 
     def _get_battery_level(self) -> Optional[int]:
         """

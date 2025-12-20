@@ -168,29 +168,31 @@ class NotAGotchiApp:
             self.pet = None  # Will be created after name entry
 
     def _recover_from_offline(self):
-        """Recover pet state after being powered off"""
+        """Recover pet state after being powered off - pause behavior"""
         if self.pet is None:
             return
 
-        time_offline = time.time() - self.pet.last_update
+        current_time = time.time()
+        time_offline = current_time - self.pet.last_update
         hours_offline = time_offline / 3600
 
         if hours_offline > 0.1:  # More than 6 minutes
             print(f"Pet was offline for {hours_offline:.1f} hours")
-            print("Recovering stats...")
+            print("Resuming from saved state (no stat changes)")
 
-            # Apply stat changes for time missed
-            changes = self.pet.update_stats()
+        # Reset timing anchors to current time (pause effect)
+        self.pet.last_update = current_time
+        self.pet.last_sleep_time = current_time
 
-            # Log recovery
-            self.db.log_event(
-                self.pet.id,
-                "recovery",
-                stat_changes=changes,
-                notes=f"Recovered from {hours_offline:.1f} hours offline"
-            )
+        # Save the updated timestamps
+        self._save_pet()
 
-            print(f"Stats after recovery: {self.pet.get_stats_dict()}")
+        # Log the pause/resume event
+        self.db.log_event(
+            self.pet.id,
+            "resume",
+            notes=f"Resumed after {hours_offline:.1f} hours offline (paused)"
+        )
 
     def _action_feed(self):
         """Handle feed action"""
@@ -413,13 +415,19 @@ class NotAGotchiApp:
             # Use placeholder
             pet_sprite = self.sprite_manager.create_placeholder_sprite()
 
+        # Get WiFi and friend status for header
+        wifi_connected = self.wifi_manager.running if self.wifi_manager else False
+        online_friends = len(self.social_coordinator.get_friends(online_only=True)) if self.social_coordinator else 0
+
         # Render status screen
         return self.display.draw_status_screen(
             pet_sprite,
             self.pet.name,
             self.pet.get_stats_dict(),
             self.pet.get_age_display(),
-            self.current_quote
+            self.current_quote,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
         )
 
     def _render_menu_screen(self):
@@ -433,12 +441,18 @@ class NotAGotchiApp:
             if pet_sprite is None:
                 pet_sprite = self.sprite_manager.create_placeholder_sprite()
 
+        # Get WiFi and friend status for header
+        wifi_connected = self.wifi_manager.running if self.wifi_manager else False
+        online_friends = len(self.social_coordinator.get_friends(online_only=True)) if self.social_coordinator else 0
+
         menu_state = self.screen_manager.get_menu_state()
         return self.display.draw_menu(
             menu_state['items'],
             menu_state['selected_index'],
             "Care Menu",
-            pet_sprite
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
         )
 
     def _render_name_entry_screen(self):
