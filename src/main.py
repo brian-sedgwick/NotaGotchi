@@ -124,6 +124,9 @@ class NotAGotchiApp:
         # Create ActionHandler with all dependencies
         self._create_action_handler()
 
+        # Initialize friend status poller
+        self._initialize_friend_status_poller()
+
         logger.info("=" * 50)
         logger.info("Initialization complete!")
 
@@ -259,6 +262,49 @@ class NotAGotchiApp:
             get_display=lambda: self.display
         )
         logger.debug("ActionHandler created")
+
+    def _initialize_friend_status_poller(self):
+        """Initialize the friend status poller for periodic presence checking."""
+        self.friend_status_poller = None
+
+        # Only initialize if social features are available
+        if not self.social_coordinator or not self.friend_manager or not self.wifi_manager:
+            logger.debug("Skipping friend status poller (social features not initialized)")
+            return
+
+        try:
+            from modules.friend_status_poller import FriendStatusPoller
+            from modules import config
+
+            self.friend_status_poller = FriendStatusPoller(
+                self.friend_manager,
+                self.wifi_manager,
+                polling_interval=config.FRIEND_POLL_INTERVAL,
+                check_timeout=config.FRIEND_CHECK_TIMEOUT,
+                max_parallel_checks=config.FRIEND_MAX_PARALLEL_CHECKS
+            )
+
+            # Register callbacks to trigger display refresh
+            def on_friend_online(device_name):
+                self.action_occurred = True  # Triggers full refresh
+                logger.info(f"Friend came online: {device_name}")
+
+            def on_friend_offline(device_name):
+                self.action_occurred = True  # Triggers full refresh
+                logger.info(f"Friend went offline: {device_name}")
+
+            self.friend_status_poller.on_friend_online = on_friend_online
+            self.friend_status_poller.on_friend_offline = on_friend_offline
+
+            # Start polling thread
+            self.friend_status_poller.start()
+            logger.info(f"Friend status poller started ({config.FRIEND_POLL_INTERVAL}s interval)")
+            print(f"✅ Friend status poller started ({config.FRIEND_POLL_INTERVAL}s interval)")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize friend status poller: {e}", exc_info=True)
+            print(f"⚠️  Friend status poller failed to start: {e}")
+            self.friend_status_poller = None
 
     def _load_or_create_pet(self):
         """Load existing pet or create new one"""
@@ -900,6 +946,10 @@ class NotAGotchiApp:
             logger.info("Pet state saved")
 
         # Stop social features
+        if self.friend_status_poller:
+            self.friend_status_poller.stop()
+            logger.info("Friend status poller stopped")
+
         if self.message_manager:
             self.message_manager.stop_queue_processor()
             logger.info("Message queue processor stopped")

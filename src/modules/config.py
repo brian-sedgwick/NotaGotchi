@@ -473,3 +473,11 @@ PRESET_JSON_PATH = os.path.join(RESOURCES_DIR, "preset_messages.json")
 # ============================================================================
 DEFAULT_PET_NAME = "Pet"
 FPS_TARGET = 30  # Target frames per second (not critical for e-ink)
+
+# ============================================================================
+# FRIEND PRESENCE POLLING
+# ============================================================================
+FRIEND_POLL_INTERVAL = 15.0          # Seconds between presence checks
+FRIEND_CHECK_TIMEOUT = 2.0           # Seconds to wait for each device
+FRIEND_MAX_PARALLEL_CHECKS = 10      # Max concurrent checks
+FRIEND_ONLINE_THRESHOLD = 300        # Seconds (5 min) to consider online

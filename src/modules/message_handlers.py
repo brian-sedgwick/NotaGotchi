@@ -7,6 +7,7 @@ New message types can be added by creating a handler and registering it.
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Callable, List
+import time
 from . import config
 
 
@@ -249,6 +250,7 @@ class ChatMessageHandler(MessageHandler):
         content = message_data.get('content')
         content_type = message_data.get('content_type', 'text')
         message_id = message_data.get('message_id')
+        timestamp = message_data.get('timestamp', time.time())
 
         # Verify sender is a friend
         if not context.friends.is_friend(from_device_name):
@@ -259,13 +261,33 @@ class ChatMessageHandler(MessageHandler):
 
         # Store message if message manager available
         if context.messages:
-            context.messages.receive_message(
-                message_id=message_id,
+            success = context.messages.receive_message(
                 from_device_name=from_device_name,
                 from_pet_name=from_pet_name,
+                message_id=message_id,
                 content=content,
-                content_type=content_type
+                content_type=content_type,
+                timestamp=timestamp
             )
+
+            if not success:
+                print(f"❌ Failed to store message from {from_pet_name}")
+                return False
+
+        # Update friend's last_seen timestamp
+        friends_list = context.friends.get_friends()
+        friend = next((f for f in friends_list if f['device_name'] == from_device_name), None)
+
+        if friend:
+            # Update last contact info (IP/port/last_seen)
+            context.friends.update_friend_contact(
+                from_device_name,
+                sender_ip,
+                friend['port']
+            )
+            print(f"✅ Updated online status for {from_pet_name}")
+        else:
+            print(f"⚠️  Could not find friend record for {from_device_name}")
 
         # Notify UI
         if context.on_message_received:
