@@ -165,9 +165,6 @@ class DisplayManager:
         image = Image.new('1', (self.width, self.height), 1)
         draw = ImageDraw.Draw(image)
 
-        # Draw header
-        self._draw_header(draw, pet_name, age_display, wifi_connected, online_friends)
-
         # Draw pet sprite (left side, 100×100)
         if pet_sprite:
             image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
@@ -187,6 +184,9 @@ class DisplayManager:
 
         # Draw stats (right side)
         self._draw_stats_bars(image, draw, stats)
+
+        # Draw header LAST so it renders on top of any oversized sprites
+        self._draw_header(draw, pet_name, age_display, wifi_connected, online_friends)
 
         return image
 

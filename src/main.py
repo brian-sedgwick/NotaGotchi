@@ -130,7 +130,31 @@ class NotAGotchiApp:
                 content = message_data.get('content', '')
                 print(f"\n📬 Message from {from_pet}: {content}")
 
+            # Register friend request callback for pop-up dialog
+            def on_friend_request_received(request_data):
+                from_name = request_data.get('pet_name', 'Unknown')
+                device_name = request_data.get('device_name')
+                print(f"\n📨 Friend request from {from_name}!")
+
+                def accept_request():
+                    print(f"Accepting friend request from {from_name}")
+                    self.social_coordinator.accept_friend_request(device_name)
+                    self.action_occurred = True
+
+                def reject_request():
+                    print(f"Rejecting friend request from {from_name}")
+                    self.social_coordinator.reject_friend_request(device_name)
+                    self.action_occurred = True
+
+                # Show confirmation dialog immediately
+                self.screen_manager.show_confirmation(
+                    f"Request from {from_name}!",
+                    accept_request,
+                    reject_request
+                )
+
             self.social_coordinator.register_ui_callbacks(
+                on_friend_request=on_friend_request_received,
                 on_message=on_message_received
             )
 
