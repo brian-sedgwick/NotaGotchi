@@ -535,7 +535,7 @@ class DisplayManager:
         # Build items list: requests + Back option
         items = []
         for request in requests:
-            name = request.get('from_pet_name', 'Unknown')
+            name = request.get('pet_name', 'Unknown')
             items.append(name)
         items.append("< Back")
 
@@ -575,6 +575,42 @@ class DisplayManager:
             # Hint at bottom (only if not on Back)
             if selected_index < len(requests):
                 draw.text((x, self.height - 15), "Press to accept", fill=0, font=self.font_small)
+
+        return image
+
+    def draw_status_message(self, message: str, submessage: str = "") -> Image.Image:
+        """
+        Draw a centered status message (toast-style feedback)
+
+        Args:
+            message: Main message to display
+            submessage: Optional smaller text below main message
+
+        Returns:
+            PIL Image of the status message screen
+        """
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw centered message box
+        box_margin = 20
+        box_top = 35
+        box_bottom = 95
+        draw.rectangle([(box_margin, box_top), (self.width - box_margin, box_bottom)],
+                       outline=0, width=2)
+
+        # Main message (centered)
+        bbox = draw.textbbox((0, 0), message, font=self.font_medium)
+        text_width = bbox[2] - bbox[0]
+        text_x = (self.width - text_width) // 2
+        draw.text((text_x, box_top + 12), message, fill=0, font=self.font_medium)
+
+        # Submessage (centered, smaller)
+        if submessage:
+            bbox = draw.textbbox((0, 0), submessage, font=self.font_small)
+            text_width = bbox[2] - bbox[0]
+            text_x = (self.width - text_width) // 2
+            draw.text((text_x, box_top + 35), submessage, fill=0, font=self.font_small)
 
         return image
 

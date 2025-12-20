@@ -427,18 +427,36 @@ class NotAGotchiApp:
             return
 
         device_name = device.get('name', 'Unknown')
+        # Extract pet name from device name (e.g., "Buddy_notagotchi" -> "Buddy")
+        suffix = f"_{config.DEVICE_ID_PREFIX}"
+        if device_name.endswith(suffix):
+            pet_name = device_name[:-len(suffix)]
+        else:
+            pet_name = device_name
 
-        print(f"Sending friend request to {device_name}")
+        print(f"Sending friend request to {pet_name}")
 
         success = self.social_coordinator.send_friend_request(device)
 
         if success:
-            print(f"Friend request sent to {device_name}")
+            print(f"Friend request sent to {pet_name}")
+            message = "Request Sent!"
+            submessage = f"to {pet_name}"
         else:
-            print(f"Failed to send friend request to {device_name}")
+            print(f"Failed to send friend request to {pet_name}")
+            message = "Request Failed"
+            submessage = ""
 
+        # Show visual feedback
+        image = self.display.draw_status_message(message, submessage)
+        self.display.update_display(image)
+
+        # Brief pause for user to see message
+        time.sleep(1.5)
+
+        # Navigate back to friends list
         self.action_occurred = True
-        self.screen_manager.set_screen(config.ScreenState.FIND_FRIENDS)
+        self.screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
 
     def _handle_friend_request_action(self, request):
         """Handle accepting/rejecting a friend request"""
