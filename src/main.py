@@ -469,7 +469,7 @@ class NotAGotchiApp:
 
         def accept_request():
             print(f"Accepting friend request from {from_name}")
-            self.social_coordinator.accept_friend_request(request)
+            self.social_coordinator.accept_friend_request(device_name)
             self.action_occurred = True
             # Refresh the requests list
             requests = self.social_coordinator.get_pending_requests()

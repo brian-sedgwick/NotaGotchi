@@ -327,7 +327,7 @@ class ScreenManager:
             else:
                 # Friend selected - open message menu
                 friend = self.friends_list[self.friends_list_index]
-                self.selected_friend = friend.get('device_id')
+                self.selected_friend = friend.get('device_name')
                 self.selected_friend_name = friend.get('pet_name', 'Friend')
                 self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
 
