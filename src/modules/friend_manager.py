@@ -164,7 +164,7 @@ class FriendManager:
 
     def reject_friend_request(self, from_device_name: str) -> bool:
         """
-        Reject a pending friend request
+        Reject a pending friend request (deletes the record to allow re-sending)
 
         Args:
             from_device_name: Device name to reject
@@ -173,18 +173,16 @@ class FriendManager:
             True if rejected successfully
         """
         try:
-            current_time = time.time()
             cursor = self.connection.cursor()
 
             cursor.execute('''
-                UPDATE friend_requests
-                SET status = 'rejected', response_time = ?
+                DELETE FROM friend_requests
                 WHERE from_device_name = ? AND status = 'pending'
-            ''', (current_time, from_device_name))
+            ''', (from_device_name,))
 
             if cursor.rowcount > 0:
                 self.connection.commit()
-                print(f"Friend request rejected: {from_device_name}")
+                print(f"Friend request rejected and deleted: {from_device_name}")
                 return True
             else:
                 print(f"No pending friend request from {from_device_name}")
