@@ -624,7 +624,7 @@ class DisplayManager:
             content = msg.get('content', '')[:12]  # Preview
             is_read = msg.get('is_read', False)
             # Format time ago
-            timestamp = msg.get('timestamp', 0)
+            timestamp = msg.get('received_at', 0)
             if timestamp:
                 age_secs = time_module.time() - timestamp
                 if age_secs < 60:

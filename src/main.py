@@ -318,7 +318,7 @@ class NotAGotchiApp:
         """Open inbox"""
         # Get recent messages from message manager
         if self.message_manager:
-            messages = self.message_manager.get_recent_messages(limit=20)
+            messages = self.message_manager.get_inbox(limit=20)
             self.screen_manager.set_inbox_messages(messages)
         else:
             self.screen_manager.set_inbox_messages([])
@@ -842,7 +842,7 @@ class NotAGotchiApp:
         message = self.screen_manager.selected_message
         if message:
             # Mark as read when viewing
-            msg_id = message.get('id')
+            msg_id = message.get('message_id')
             if msg_id and self.message_manager:
                 self.message_manager.mark_as_read(msg_id)
 
