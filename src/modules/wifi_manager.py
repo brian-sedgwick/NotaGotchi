@@ -12,10 +12,11 @@ Based on proven test code (test_wifi_*.py)
 
 import socket
 import threading
+import queue
 import json
 import time
 import subprocess
-from typing import Dict, List, Callable, Optional, Any
+from typing import Dict, List, Callable, Optional, Any, Tuple
 from . import config
 
 
@@ -49,9 +50,13 @@ class WiFiManager:
         # mDNS via avahi-publish-service
         self.avahi_publish_process = None
 
-        # Callbacks
+        # Callbacks - now uses queue for thread safety
         self.message_callbacks: List[Callable] = []
         self.callback_lock = threading.Lock()
+
+        # Thread-safe callback queue for events from server thread
+        # Events are tuples: (message_data: Dict, sender_ip: str)
+        self.callback_queue: queue.Queue[Tuple[Dict, str]] = queue.Queue()
 
         # Connection tracking
         self.active_connections = []
@@ -501,12 +506,45 @@ class WiFiManager:
             client_socket.close()
 
     def _invoke_callbacks(self, message_data: Dict, sender_ip: str):
-        """Invoke all registered callbacks (thread-safe)"""
+        """Queue message for processing by main thread (thread-safe)"""
+        # Add to queue instead of direct invocation - main thread will process
+        try:
+            self.callback_queue.put_nowait((message_data, sender_ip))
+        except queue.Full:
+            print(f"⚠️  Callback queue full, dropping message from {sender_ip}")
+
+    def process_callback_queue(self) -> int:
+        """
+        Process pending callback events from WiFi server thread.
+
+        Call this from the main thread (e.g., in game loop) to handle
+        incoming messages in a thread-safe manner.
+
+        Returns:
+            Number of events processed
+        """
+        processed = 0
+
         with self.callback_lock:
             callbacks = self.message_callbacks.copy()
 
-        for callback in callbacks:
+        while True:
             try:
-                callback(message_data, sender_ip)
-            except Exception as e:
-                print(f"❌ Callback error: {e}")
+                message_data, sender_ip = self.callback_queue.get_nowait()
+
+                for callback in callbacks:
+                    try:
+                        callback(message_data, sender_ip)
+                    except Exception as e:
+                        print(f"❌ Callback error: {e}")
+
+                processed += 1
+
+            except queue.Empty:
+                break
+
+        return processed
+
+    def has_pending_events(self) -> bool:
+        """Check if there are pending events in the callback queue"""
+        return not self.callback_queue.empty()

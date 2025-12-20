@@ -9,6 +9,8 @@ import sqlite3
 import os
 import time
 import json
+import threading
+from contextlib import contextmanager
 from typing import Optional, Dict, Any, List
 from . import config
 
@@ -20,8 +22,22 @@ class DatabaseManager:
         """Initialize database manager"""
         self.db_path = db_path or config.DATABASE_PATH
         self.connection = None
+        self._lock = threading.RLock()  # Thread-safe database access
         self._ensure_data_directory()
         self._initialize_database()
+
+    @contextmanager
+    def _db_lock(self):
+        """Context manager for thread-safe database access"""
+        self._lock.acquire()
+        try:
+            yield
+        finally:
+            self._lock.release()
+
+    def get_lock(self) -> threading.RLock:
+        """Get the database lock for external synchronization if needed"""
+        return self._lock
 
     def _ensure_data_directory(self):
         """Create data directory if it doesn't exist"""
@@ -215,241 +231,254 @@ class DatabaseManager:
 
     def get_active_pet(self) -> Optional[Dict[str, Any]]:
         """Get the currently active pet"""
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute('''
-                SELECT id, name, hunger, happiness, health, energy, birth_time,
-                       last_update, last_sleep_time, evolution_stage, age_seconds
-                FROM pet_state
-                WHERE is_active = 1
-                ORDER BY id DESC
-                LIMIT 1
-            ''')
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute('''
+                    SELECT id, name, hunger, happiness, health, energy, birth_time,
+                           last_update, last_sleep_time, evolution_stage, age_seconds
+                    FROM pet_state
+                    WHERE is_active = 1
+                    ORDER BY id DESC
+                    LIMIT 1
+                ''')
 
-            row = cursor.fetchone()
-            if row:
-                return {
-                    'id': row[0],
-                    'name': row[1],
-                    'hunger': row[2],
-                    'happiness': row[3],
-                    'health': row[4],
-                    'energy': row[5],
-                    'birth_time': row[6],
-                    'last_update': row[7],
-                    'last_sleep_time': row[8],
-                    'evolution_stage': row[9],
-                    'age_seconds': row[10]
-                }
-            return None
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        'id': row[0],
+                        'name': row[1],
+                        'hunger': row[2],
+                        'happiness': row[3],
+                        'health': row[4],
+                        'energy': row[5],
+                        'birth_time': row[6],
+                        'last_update': row[7],
+                        'last_sleep_time': row[8],
+                        'evolution_stage': row[9],
+                        'age_seconds': row[10]
+                    }
+                return None
 
-        except sqlite3.Error as e:
-            print(f"Error retrieving active pet: {e}")
-            return None
+            except sqlite3.Error as e:
+                print(f"Error retrieving active pet: {e}")
+                return None
 
     def create_pet(self, name: str, hunger: int = None, happiness: int = None,
                    health: int = None, energy: int = None) -> Optional[int]:
         """Create a new pet and return its ID"""
-        try:
-            current_time = time.time()
+        with self._db_lock():
+            try:
+                current_time = time.time()
 
-            # Deactivate any existing active pets
-            cursor = self.connection.cursor()
-            cursor.execute('''
-                UPDATE pet_state
-                SET is_active = 0
-                WHERE is_active = 1
-            ''')
+                # Deactivate any existing active pets
+                cursor = self.connection.cursor()
+                cursor.execute('''
+                    UPDATE pet_state
+                    SET is_active = 0
+                    WHERE is_active = 1
+                ''')
 
-            # Create new pet
-            cursor.execute('''
-                INSERT INTO pet_state
-                (name, hunger, happiness, health, energy, birth_time, last_update,
-                 last_sleep_time, evolution_stage, age_seconds, is_active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 1, ?)
-            ''', (
-                name,
-                hunger if hunger is not None else config.INITIAL_HUNGER,
-                happiness if happiness is not None else config.INITIAL_HAPPINESS,
-                health if health is not None else config.INITIAL_HEALTH,
-                energy if energy is not None else config.INITIAL_ENERGY,
-                current_time,
-                current_time,
-                current_time,  # last_sleep_time initialized to birth time
-                current_time
-            ))
+                # Create new pet
+                cursor.execute('''
+                    INSERT INTO pet_state
+                    (name, hunger, happiness, health, energy, birth_time, last_update,
+                     last_sleep_time, evolution_stage, age_seconds, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 1, ?)
+                ''', (
+                    name,
+                    hunger if hunger is not None else config.INITIAL_HUNGER,
+                    happiness if happiness is not None else config.INITIAL_HAPPINESS,
+                    health if health is not None else config.INITIAL_HEALTH,
+                    energy if energy is not None else config.INITIAL_ENERGY,
+                    current_time,
+                    current_time,
+                    current_time,  # last_sleep_time initialized to birth time
+                    current_time
+                ))
 
-            pet_id = cursor.lastrowid
-            self.connection.commit()
+                pet_id = cursor.lastrowid
+                self.connection.commit()
 
-            # Log creation event
-            self.log_event(pet_id, "created", notes=f"Pet '{name}' created")
+                # Log creation event (call internal version to avoid deadlock)
+                self._log_event_internal(cursor, pet_id, "created", notes=f"Pet '{name}' created")
+                self.connection.commit()
 
-            print(f"New pet created: {name} (ID: {pet_id})")
-            return pet_id
+                print(f"New pet created: {name} (ID: {pet_id})")
+                return pet_id
 
-        except sqlite3.Error as e:
-            print(f"Error creating pet: {e}")
-            self.connection.rollback()
-            return None
+            except sqlite3.Error as e:
+                print(f"Error creating pet: {e}")
+                self.connection.rollback()
+                return None
 
     def update_pet(self, pet_id: int, hunger: int = None, happiness: int = None,
                    health: int = None, energy: int = None, evolution_stage: int = None,
                    age_seconds: int = None, last_update: float = None,
                    last_sleep_time: float = None) -> bool:
         """Update pet stats"""
-        try:
-            updates = []
-            params = []
+        with self._db_lock():
+            try:
+                updates = []
+                params = []
 
-            if hunger is not None:
-                updates.append("hunger = ?")
-                params.append(max(config.STAT_MIN, min(config.STAT_MAX, hunger)))
+                if hunger is not None:
+                    updates.append("hunger = ?")
+                    params.append(max(config.STAT_MIN, min(config.STAT_MAX, hunger)))
 
-            if happiness is not None:
-                updates.append("happiness = ?")
-                params.append(max(config.STAT_MIN, min(config.STAT_MAX, happiness)))
+                if happiness is not None:
+                    updates.append("happiness = ?")
+                    params.append(max(config.STAT_MIN, min(config.STAT_MAX, happiness)))
 
-            if health is not None:
-                updates.append("health = ?")
-                params.append(max(config.STAT_MIN, min(config.STAT_MAX, health)))
+                if health is not None:
+                    updates.append("health = ?")
+                    params.append(max(config.STAT_MIN, min(config.STAT_MAX, health)))
 
-            if energy is not None:
-                updates.append("energy = ?")
-                params.append(max(config.STAT_MIN, min(config.STAT_MAX, energy)))
+                if energy is not None:
+                    updates.append("energy = ?")
+                    params.append(max(config.STAT_MIN, min(config.STAT_MAX, energy)))
 
-            if evolution_stage is not None:
-                updates.append("evolution_stage = ?")
-                params.append(evolution_stage)
+                if evolution_stage is not None:
+                    updates.append("evolution_stage = ?")
+                    params.append(evolution_stage)
 
-            if age_seconds is not None:
-                updates.append("age_seconds = ?")
-                params.append(age_seconds)
+                if age_seconds is not None:
+                    updates.append("age_seconds = ?")
+                    params.append(age_seconds)
 
-            if last_sleep_time is not None:
-                updates.append("last_sleep_time = ?")
-                params.append(last_sleep_time)
+                if last_sleep_time is not None:
+                    updates.append("last_sleep_time = ?")
+                    params.append(last_sleep_time)
 
-            if last_update is not None:
-                updates.append("last_update = ?")
-                params.append(last_update)
-            else:
-                updates.append("last_update = ?")
-                params.append(time.time())
+                if last_update is not None:
+                    updates.append("last_update = ?")
+                    params.append(last_update)
+                else:
+                    updates.append("last_update = ?")
+                    params.append(time.time())
 
-            if not updates:
-                return True  # Nothing to update
+                if not updates:
+                    return True  # Nothing to update
 
-            query = f"UPDATE pet_state SET {', '.join(updates)} WHERE id = ?"
-            params.append(pet_id)
+                query = f"UPDATE pet_state SET {', '.join(updates)} WHERE id = ?"
+                params.append(pet_id)
 
-            cursor = self.connection.cursor()
-            cursor.execute(query, params)
-            self.connection.commit()
+                cursor = self.connection.cursor()
+                cursor.execute(query, params)
+                self.connection.commit()
 
-            return True
+                return True
 
-        except sqlite3.Error as e:
-            print(f"Error updating pet: {e}")
-            self.connection.rollback()
-            return False
+            except sqlite3.Error as e:
+                print(f"Error updating pet: {e}")
+                self.connection.rollback()
+                return False
+
+    def _log_event_internal(self, cursor, pet_id: int, event_type: str,
+                            stat_changes: Dict[str, int] = None, notes: str = None):
+        """Internal log_event without lock - for use within locked context"""
+        cursor.execute('''
+            INSERT INTO pet_history (pet_id, timestamp, event_type, stat_changes, notes)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            pet_id,
+            time.time(),
+            event_type,
+            json.dumps(stat_changes) if stat_changes else None,
+            notes
+        ))
 
     def log_event(self, pet_id: int, event_type: str,
                   stat_changes: Dict[str, int] = None, notes: str = None) -> bool:
         """Log a pet event to history"""
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute('''
-                INSERT INTO pet_history (pet_id, timestamp, event_type, stat_changes, notes)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (
-                pet_id,
-                time.time(),
-                event_type,
-                json.dumps(stat_changes) if stat_changes else None,
-                notes
-            ))
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                self._log_event_internal(cursor, pet_id, event_type, stat_changes, notes)
+                self.connection.commit()
+                return True
 
-            self.connection.commit()
-            return True
-
-        except sqlite3.Error as e:
-            print(f"Error logging event: {e}")
-            self.connection.rollback()
-            return False
+            except sqlite3.Error as e:
+                print(f"Error logging event: {e}")
+                self.connection.rollback()
+                return False
 
     def get_pet_history(self, pet_id: int, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recent history for a pet"""
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute('''
-                SELECT timestamp, event_type, stat_changes, notes
-                FROM pet_history
-                WHERE pet_id = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-            ''', (pet_id, limit))
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute('''
+                    SELECT timestamp, event_type, stat_changes, notes
+                    FROM pet_history
+                    WHERE pet_id = ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                ''', (pet_id, limit))
 
-            history = []
-            for row in cursor.fetchall():
-                history.append({
-                    'timestamp': row[0],
-                    'event_type': row[1],
-                    'stat_changes': json.loads(row[2]) if row[2] else None,
-                    'notes': row[3]
-                })
+                history = []
+                for row in cursor.fetchall():
+                    history.append({
+                        'timestamp': row[0],
+                        'event_type': row[1],
+                        'stat_changes': json.loads(row[2]) if row[2] else None,
+                        'notes': row[3]
+                    })
 
-            return history
+                return history
 
-        except sqlite3.Error as e:
-            print(f"Error retrieving history: {e}")
-            return []
+            except sqlite3.Error as e:
+                print(f"Error retrieving history: {e}")
+                return []
 
     def set_config(self, key: str, value: Any) -> bool:
         """Set a configuration value"""
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO system_config (key, value, updated_at)
-                VALUES (?, ?, ?)
-            ''', (key, json.dumps(value), time.time()))
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO system_config (key, value, updated_at)
+                    VALUES (?, ?, ?)
+                ''', (key, json.dumps(value), time.time()))
 
-            self.connection.commit()
-            return True
+                self.connection.commit()
+                return True
 
-        except sqlite3.Error as e:
-            print(f"Error setting config: {e}")
-            self.connection.rollback()
-            return False
+            except sqlite3.Error as e:
+                print(f"Error setting config: {e}")
+                self.connection.rollback()
+                return False
 
     def get_config(self, key: str, default: Any = None) -> Any:
         """Get a configuration value"""
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute('''
-                SELECT value FROM system_config WHERE key = ?
-            ''', (key,))
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute('''
+                    SELECT value FROM system_config WHERE key = ?
+                ''', (key,))
 
-            row = cursor.fetchone()
-            if row:
-                return json.loads(row[0])
-            return default
+                row = cursor.fetchone()
+                if row:
+                    return json.loads(row[0])
+                return default
 
-        except sqlite3.Error as e:
-            print(f"Error getting config: {e}")
-            return default
+            except sqlite3.Error as e:
+                print(f"Error getting config: {e}")
+                return default
 
     def check_integrity(self) -> bool:
         """Check database integrity"""
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute("PRAGMA integrity_check")
-            result = cursor.fetchone()
-            return result[0] == "ok"
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute("PRAGMA integrity_check")
+                result = cursor.fetchone()
+                return result[0] == "ok"
 
-        except sqlite3.Error as e:
-            print(f"Database integrity check failed: {e}")
-            return False
+            except sqlite3.Error as e:
+                print(f"Database integrity check failed: {e}")
+                return False
 
     def close(self):
         """Close database connection"""

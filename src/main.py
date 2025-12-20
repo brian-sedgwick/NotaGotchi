@@ -102,14 +102,16 @@ class NotAGotchiApp:
             print("\nInitializing social features...")
             print(f"Device name: {device_name}")
 
-            # Initialize managers
+            # Initialize managers with shared database lock for thread safety
+            db_lock = self.db.get_lock()
             self.wifi_manager = WiFiManager(device_name)
-            self.friend_manager = FriendManager(self.db.connection, device_name)
+            self.friend_manager = FriendManager(self.db.connection, device_name, db_lock)
             self.message_manager = MessageManager(
                 self.db.connection,
                 self.wifi_manager,
                 self.friend_manager,
-                device_name
+                device_name,
+                db_lock
             )
             self.social_coordinator = SocialCoordinator(
                 self.wifi_manager,
@@ -421,8 +423,17 @@ class NotAGotchiApp:
         """Complete name entry and create/rename pet"""
         name = self.screen_manager.get_entered_name()
 
+        # Validate the name
+        if name:
+            name = name.strip()
+            is_valid, error = config.validate_pet_name(name)
+            if not is_valid:
+                print(f"⚠️  Invalid pet name: {error}")
+                name = None
+
         if not name:
             name = config.DEFAULT_PET_NAME
+            print(f"Using default pet name: {name}")
 
         if self.pet is None:
             # Create new pet
@@ -621,18 +632,9 @@ class NotAGotchiApp:
             draw.text((50, 50), "Waiting for name...", fill=0)
             return image
 
-        # Get pet sprite
-        sprite_name = self.pet.get_current_sprite()
-        pet_sprite = self.sprite_manager.get_sprite_by_name(sprite_name)
-
-        if pet_sprite is None:
-            # Use placeholder
-            pet_sprite = self.sprite_manager.create_placeholder_sprite()
-
-        # Get WiFi and friend status for header
-        wifi_connected = self.wifi_manager.running if self.wifi_manager else False
-        online_friends = len(self.social_coordinator.get_friends(online_only=True)) if self.social_coordinator else 0
-        unread_messages = self.message_manager.get_unread_count() if self.message_manager else 0
+        # Get pet sprite and header status
+        pet_sprite = self._get_pet_sprite()
+        status = self._get_header_status()
 
         # Render status screen
         return self.display.draw_status_screen(
@@ -641,26 +643,13 @@ class NotAGotchiApp:
             self.pet.get_stats_dict(),
             self.pet.get_age_display(),
             self.current_quote,
-            wifi_connected=wifi_connected,
-            online_friends=online_friends,
-            unread_messages=unread_messages
+            **status
         )
 
     def _render_menu_screen(self):
         """Render menu screen with pet sprite"""
-        if self.pet is None:
-            pet_sprite = None
-        else:
-            # Get pet sprite (same as home screen)
-            sprite_name = self.pet.get_current_sprite()
-            pet_sprite = self.sprite_manager.get_sprite_by_name(sprite_name)
-            if pet_sprite is None:
-                pet_sprite = self.sprite_manager.create_placeholder_sprite()
-
-        # Get WiFi and friend status for header
-        wifi_connected = self.wifi_manager.running if self.wifi_manager else False
-        online_friends = len(self.social_coordinator.get_friends(online_only=True)) if self.social_coordinator else 0
-        unread_messages = self.message_manager.get_unread_count() if self.message_manager else 0
+        pet_sprite = self._get_pet_sprite()
+        status = self._get_header_status()
 
         menu_state = self.screen_manager.get_menu_state()
         return self.display.draw_menu(
@@ -668,9 +657,7 @@ class NotAGotchiApp:
             menu_state['selected_index'],
             "Menu",
             pet_sprite,
-            wifi_connected=wifi_connected,
-            online_friends=online_friends,
-            unread_messages=unread_messages
+            **status
         )
 
     def _render_name_entry_screen(self):
@@ -718,6 +705,18 @@ class NotAGotchiApp:
         if self.social_coordinator:
             return len(self.social_coordinator.get_friends(online_only=True))
         return 0
+
+    def _get_unread_count(self):
+        """Helper to get unread message count"""
+        return self.message_manager.get_unread_count() if self.message_manager else 0
+
+    def _get_header_status(self):
+        """Get common header status values for display rendering."""
+        return {
+            'wifi_connected': self._get_wifi_status(),
+            'online_friends': self._get_online_friends_count(),
+            'unread_messages': self._get_unread_count()
+        }
 
     def _render_care_menu_screen(self):
         """Render care menu screen"""
@@ -934,6 +933,10 @@ class NotAGotchiApp:
 
         try:
             while self.running:
+                # Process WiFi callback queue (thread-safe message handling)
+                if self.wifi_manager:
+                    self.wifi_manager.process_callback_queue()
+
                 # Handle input
                 self._handle_input()
 

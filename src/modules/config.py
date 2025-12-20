@@ -46,17 +46,19 @@ DISPLAY_HEIGHT = 122   # Landscape orientation
 DISPLAY_ROTATION = 90  # Degrees
 
 # Display Layout (Landscape: 250×122)
-PET_SPRITE_X = 0       # Left side
-PET_SPRITE_Y = 14      # Offset from top (header height)
+HEADER_HEIGHT = 14     # Top header for time/battery
+
+# Pet sprite area (left side, below header)
+PET_SPRITE_X = 0
+PET_SPRITE_Y = HEADER_HEIGHT  # Derived from header height
 PET_SPRITE_WIDTH = 100
 PET_SPRITE_HEIGHT = 100
 
-STATUS_AREA_X = 100    # Right side
-STATUS_AREA_Y = 14     # Offset from top (header height)
+# Status/menu area (right side, below header)
+STATUS_AREA_X = 100
+STATUS_AREA_Y = HEADER_HEIGHT  # Derived from header height
 STATUS_AREA_WIDTH = 150
-STATUS_AREA_HEIGHT = 108  # 122 - 14 (header)
-
-HEADER_HEIGHT = 14     # Top header for time/battery
+STATUS_AREA_HEIGHT = DISPLAY_HEIGHT - HEADER_HEIGHT  # Derived: 122 - 14 = 108
 
 # Display Refresh Settings
 PARTIAL_REFRESH_INTERVAL = 1    # Seconds between partial refreshes
@@ -190,14 +192,29 @@ EMOTION_RULES = [
 # ============================================================================
 # LIFECYCLE / EVOLUTION CONFIGURATION
 # ============================================================================
+# Environment-based configuration
+# Set NOTAGOTCHI_ENV=test for faster evolution (testing)
+# Set NOTAGOTCHI_ENV=production for realistic evolution times
+ENVIRONMENT = os.getenv('NOTAGOTCHI_ENV', 'test')  # Default to test for development
+
 # Age thresholds for evolution (in seconds)
-STAGE_THRESHOLDS = {
-    0: 0,              # Egg: 0 seconds (birth)
-    1: 300,            # Baby: 5 minutes (for testing; change to 86400 for 1 day)
-    2: 3600,           # Child: 1 hour (for testing; change to 259200 for 3 days)
-    3: 86400,          # Teen: 1 day (for testing; change to 604800 for 7 days)
-    4: 259200          # Adult: 3 days (for testing; change to 1209600 for 14 days)
+_STAGE_THRESHOLDS_PRODUCTION = {
+    0: 0,              # Egg: immediate
+    1: 86400,          # Baby: 1 day
+    2: 259200,         # Child: 3 days
+    3: 604800,         # Teen: 7 days
+    4: 1209600         # Adult: 14 days
 }
+
+_STAGE_THRESHOLDS_TEST = {
+    0: 0,              # Egg: immediate
+    1: 300,            # Baby: 5 minutes
+    2: 3600,           # Child: 1 hour
+    3: 86400,          # Teen: 1 day
+    4: 259200          # Adult: 3 days
+}
+
+STAGE_THRESHOLDS = _STAGE_THRESHOLDS_PRODUCTION if ENVIRONMENT == 'production' else _STAGE_THRESHOLDS_TEST
 
 # Display evolution for this many seconds after stage change
 EVOLUTION_DISPLAY_DURATION = 5  # Seconds
@@ -225,6 +242,48 @@ LONG_PRESS_DURATION = 0.5      # 500ms for long press
 TEXT_ENTRY_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
 MAX_NAME_LENGTH = 12
 MIN_NAME_LENGTH = 1
+
+# Valid characters pattern for pet names (alphanumeric, spaces, dashes)
+import re
+PET_NAME_PATTERN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9\s\-]*$')
+
+
+def validate_pet_name(name: str) -> tuple:
+    """
+    Validate a pet name.
+
+    Args:
+        name: The name to validate
+
+    Returns:
+        Tuple of (is_valid: bool, error_message: str or None)
+    """
+    if name is None:
+        return False, "Name cannot be None"
+
+    if not isinstance(name, str):
+        return False, f"Name must be a string, got {type(name)}"
+
+    # Strip and check
+    name = name.strip()
+
+    if not name:
+        return False, "Name cannot be empty"
+
+    if len(name) < MIN_NAME_LENGTH:
+        return False, f"Name must be at least {MIN_NAME_LENGTH} character(s)"
+
+    if len(name) > MAX_NAME_LENGTH:
+        return False, f"Name cannot exceed {MAX_NAME_LENGTH} characters"
+
+    if not PET_NAME_PATTERN.match(name):
+        return False, "Name can only contain letters, numbers, spaces, and dashes"
+
+    # Check for whitespace-only (after stripping, this should be caught above)
+    if name.isspace():
+        return False, "Name cannot be only whitespace"
+
+    return True, None
 
 # ============================================================================
 # DATABASE CONFIGURATION

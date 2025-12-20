@@ -142,6 +142,104 @@ class DisplayManager:
             self.simulation_mode = True
             self.epd = None
 
+    # =========================================================================
+    # HELPER METHODS - Extracted to reduce duplication
+    # =========================================================================
+
+    def _create_canvas(self) -> tuple:
+        """
+        Create a blank canvas for drawing.
+
+        Returns:
+            Tuple of (PIL Image, ImageDraw object)
+        """
+        image = Image.new('1', (self.width, self.height), 1)
+        return image, ImageDraw.Draw(image)
+
+    def _format_time_ago(self, timestamp: float, verbose: bool = False) -> str:
+        """
+        Convert timestamp to relative time string.
+
+        Args:
+            timestamp: Unix timestamp
+            verbose: If True, use longer format ("Just now", "5 min ago")
+                    If False, use short format ("now", "5m", "2h", "3d")
+
+        Returns:
+            Relative time string
+        """
+        if not timestamp:
+            return ""
+        age_secs = time.time() - timestamp
+        if age_secs < 60:
+            return "Just now" if verbose else "now"
+        elif age_secs < 3600:
+            mins = int(age_secs / 60)
+            return f"{mins} min ago" if verbose else f"{mins}m"
+        elif age_secs < 86400:
+            hours = int(age_secs / 3600)
+            return f"{hours} hr ago" if verbose else f"{hours}h"
+        else:
+            days = int(age_secs / 86400)
+            return f"{days} days ago" if verbose else f"{days}d"
+
+    def _draw_list_item(self, draw: ImageDraw.Draw, x: int, y: int,
+                        text: str, selected: bool, item_height: int,
+                        font=None) -> None:
+        """
+        Draw a list item with optional selection highlight.
+
+        Args:
+            draw: ImageDraw object
+            x: X position
+            y: Y position
+            text: Text to display
+            selected: Whether this item is selected (highlighted)
+            item_height: Height of the item for highlight rectangle
+            font: Font to use (defaults to font_small)
+        """
+        font = font or self.font_small
+        if selected:
+            draw.rectangle(
+                [(x - 2, y - 1), (self.width - 5, y + item_height - 3)],
+                fill=0
+            )
+            draw.text((x, y), text, fill=1, font=font)
+        else:
+            draw.text((x, y), text, fill=0, font=font)
+
+    def _wrap_text(self, draw: ImageDraw.Draw, text: str,
+                   max_width: int, font) -> list:
+        """
+        Wrap text to fit within max_width.
+
+        Args:
+            draw: ImageDraw object (used for measuring text)
+            text: Text to wrap
+            max_width: Maximum width in pixels
+            font: Font to use for measurement
+
+        Returns:
+            List of wrapped lines
+        """
+        words = text.split()
+        lines = []
+        current_line = ""
+
+        for word in words:
+            test_line = current_line + (" " if current_line else "") + word
+            bbox = draw.textbbox((0, 0), test_line, font=font)
+            if bbox[2] - bbox[0] <= max_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+
+        if current_line:
+            lines.append(current_line)
+        return lines
+
     def draw_status_screen(self, pet_sprite: Optional[Image.Image],
                           pet_name: str, stats: Dict[str, int],
                           age_display: str, quote: Optional[str] = None,
@@ -163,9 +261,7 @@ class DisplayManager:
         Returns:
             PIL Image of the complete screen
         """
-        # Create blank canvas (white background)
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw pet sprite (left side, 100×100)
         if pet_sprite:
@@ -212,9 +308,7 @@ class DisplayManager:
         Returns:
             PIL Image of the menu screen
         """
-        # Create blank canvas
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header with title (use _draw_header for consistency with status icons)
         # Pass title as pet_name and empty age since menu doesn't show age
@@ -274,9 +368,7 @@ class DisplayManager:
         Returns:
             PIL Image of the text input screen
         """
-        # Create blank canvas
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Title
         draw.text((5, 2), title, fill=0, font=self.font_medium)
@@ -310,30 +402,19 @@ class DisplayManager:
         Returns:
             PIL Image of confirmation screen
         """
-        # Create blank canvas
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw border
         draw.rectangle([(10, 20), (self.width - 10, self.height - 20)],
                       outline=0, width=2)
 
         # Draw message (word wrap if needed)
+        max_width = self.width - 30
+        lines = self._wrap_text(draw, message, max_width, self.font_small)
         y_offset = 30
-        words = message.split()
-        line = ""
-        for word in words:
-            test_line = line + word + " "
-            bbox = draw.textbbox((0, 0), test_line, font=self.font_small)
-            if bbox[2] - bbox[0] < self.width - 30:
-                line = test_line
-            else:
-                draw.text((20, y_offset), line, fill=0, font=self.font_small)
-                line = word + " "
-                y_offset += 12
-
-        if line:
+        for line in lines:
             draw.text((20, y_offset), line, fill=0, font=self.font_small)
+            y_offset += 12
 
         # Draw Yes/No buttons
         yes_box = [(30, 80), (100, 100)]
@@ -374,9 +455,7 @@ class DisplayManager:
         Returns:
             PIL Image of friends list screen
         """
-        # Create blank canvas
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header
         self._draw_header(draw, "Friends", "", wifi_connected, online_friends)
@@ -438,9 +517,7 @@ class DisplayManager:
         Returns:
             PIL Image of find friends screen
         """
-        # Create blank canvas
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header
         self._draw_header(draw, "Find Friends", "", wifi_connected, online_friends)
@@ -520,9 +597,7 @@ class DisplayManager:
         Returns:
             PIL Image of friend requests screen
         """
-        # Create blank canvas
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header
         self._draw_header(draw, "Requests", "", wifi_connected, online_friends)
@@ -600,10 +675,7 @@ class DisplayManager:
         Returns:
             PIL Image of inbox screen
         """
-        import time as time_module
-
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header
         self._draw_header(draw, "Inbox", "", wifi_connected, online_friends, unread_messages)
@@ -615,7 +687,12 @@ class DisplayManager:
         # Draw messages list on right side
         x = config.STATUS_AREA_X + 5
         y = config.STATUS_AREA_Y + 2
-        item_height = 18  # Single line per message (medium font)
+
+        # Define font for inbox items - change here to adjust size
+        inbox_font = self.font_medium
+        # Calculate item height from font (keeps highlight in sync with text)
+        sample_bbox = draw.textbbox((0, 0), "Ag", font=inbox_font)
+        item_height = (sample_bbox[3] - sample_bbox[1]) + 4  # font height + padding
 
         # Build items list: messages + Back option
         items = []
@@ -624,19 +701,7 @@ class DisplayManager:
             content = msg.get('content', '')[:10]  # Short preview
             is_read = msg.get('is_read', False)
             # Format time ago
-            timestamp = msg.get('received_at', 0)
-            if timestamp:
-                age_secs = time_module.time() - timestamp
-                if age_secs < 60:
-                    time_str = "now"
-                elif age_secs < 3600:
-                    time_str = f"{int(age_secs / 60)}m"
-                elif age_secs < 86400:
-                    time_str = f"{int(age_secs / 3600)}h"
-                else:
-                    time_str = f"{int(age_secs / 86400)}d"
-            else:
-                time_str = ""
+            time_str = self._format_time_ago(msg.get('received_at', 0))
 
             # Build single-line display: "* Sender (1h) - preview" or "  Sender (1h) - preview"
             line = sender
@@ -648,18 +713,19 @@ class DisplayManager:
             items.append(line)
 
         if len(messages) == 0:
-            draw.text((x, y), "No messages", fill=0, font=self.font_medium)
+            draw.text((x, y), "No messages", fill=0, font=inbox_font)
             # Still show Back option
-            y_pos = y + 30
+            y_pos = y + item_height * 2
             if selected_index == 0:  # Back is selected
                 draw.rectangle([(x - 2, y_pos - 1),
-                              (self.width - 5, y_pos + 16)], fill=0)
-                draw.text((x, y_pos), "< Back", fill=1, font=self.font_medium)
+                              (self.width - 5, y_pos + item_height - 2)], fill=0)
+                draw.text((x, y_pos), "< Back", fill=1, font=inbox_font)
             else:
-                draw.text((x, y_pos), "< Back", fill=0, font=self.font_medium)
+                draw.text((x, y_pos), "< Back", fill=0, font=inbox_font)
         else:
-            # Draw message list
-            visible_items = 5  # Fewer items with medium font
+            # Draw message list - calculate visible items from available space
+            available_height = config.STATUS_AREA_HEIGHT - 10
+            visible_items = available_height // item_height
             # Account for Back option
             total_items = len(items) + 1  # +1 for Back
             start_idx = max(0, selected_index - visible_items + 1)
@@ -674,17 +740,17 @@ class DisplayManager:
                     if i == selected_index:
                         draw.rectangle([(x - 2, y_pos - 1),
                                       (self.width - 5, y_pos + item_height - 2)], fill=0)
-                        draw.text((x, y_pos), line, fill=1, font=self.font_emoji)
+                        draw.text((x, y_pos), line, fill=1, font=inbox_font)
                     else:
-                        draw.text((x, y_pos), line, fill=0, font=self.font_emoji)
+                        draw.text((x, y_pos), line, fill=0, font=inbox_font)
                 else:
                     # Back option
                     if i == selected_index:
                         draw.rectangle([(x - 2, y_pos - 1),
                                       (self.width - 5, y_pos + item_height - 2)], fill=0)
-                        draw.text((x, y_pos), "< Back", fill=1, font=self.font_medium)
+                        draw.text((x, y_pos), "< Back", fill=1, font=inbox_font)
                     else:
-                        draw.text((x, y_pos), "< Back", fill=0, font=self.font_medium)
+                        draw.text((x, y_pos), "< Back", fill=0, font=inbox_font)
 
         return image
 
@@ -704,10 +770,7 @@ class DisplayManager:
         Returns:
             PIL Image of message detail screen
         """
-        import time as time_module
-
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header with sender name
         sender = message.get('from_pet_name', 'Unknown')
@@ -722,38 +785,15 @@ class DisplayManager:
         y = config.STATUS_AREA_Y + 5
 
         # Format time
-        timestamp = message.get('timestamp', 0)
-        if timestamp:
-            age_secs = time_module.time() - timestamp
-            if age_secs < 60:
-                time_str = "Just now"
-            elif age_secs < 3600:
-                time_str = f"{int(age_secs / 60)} min ago"
-            elif age_secs < 86400:
-                time_str = f"{int(age_secs / 3600)} hr ago"
-            else:
-                time_str = f"{int(age_secs / 86400)} days ago"
+        time_str = self._format_time_ago(message.get('timestamp', 0), verbose=True)
+        if time_str:
             draw.text((x, y), time_str, fill=0, font=self.font_medium)
             y += 18
 
         # Draw message content (word-wrapped)
         content = message.get('content', '')
         max_width = config.STATUS_AREA_WIDTH - 10
-        # Simple word wrap
-        words = content.split()
-        lines = []
-        current_line = ""
-        for word in words:
-            test_line = current_line + (" " if current_line else "") + word
-            bbox = draw.textbbox((0, 0), test_line, font=self.font_emoji)
-            if bbox[2] - bbox[0] <= max_width:
-                current_line = test_line
-            else:
-                if current_line:
-                    lines.append(current_line)
-                current_line = word
-        if current_line:
-            lines.append(current_line)
+        lines = self._wrap_text(draw, content, max_width, self.font_emoji)
 
         # Draw wrapped lines
         for line in lines[:4]:  # Max 4 lines with larger font
@@ -776,8 +816,7 @@ class DisplayManager:
         Returns:
             PIL Image of the status message screen
         """
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw centered message box
         box_margin = 20
@@ -819,8 +858,7 @@ class DisplayManager:
         Returns:
             PIL Image of category select screen
         """
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header
         self._draw_header(draw, "Emoji", "", wifi_connected, online_friends)
@@ -875,9 +913,7 @@ class DisplayManager:
         Returns:
             PIL Image of emoji select screen
         """
-        # Create blank canvas
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header
         self._draw_header(draw, "Emoji", "", wifi_connected, online_friends)
@@ -926,8 +962,7 @@ class DisplayManager:
         Returns:
             PIL Image of category select screen
         """
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header
         self._draw_header(draw, "Quick Msg", "", wifi_connected, online_friends)
@@ -982,9 +1017,7 @@ class DisplayManager:
         Returns:
             PIL Image of preset select screen
         """
-        # Create blank canvas
-        image = Image.new('1', (self.width, self.height), 1)
-        draw = ImageDraw.Draw(image)
+        image, draw = self._create_canvas()
 
         # Draw header
         self._draw_header(draw, "Quick Msg", "", wifi_connected, online_friends)
