@@ -63,7 +63,7 @@ class DisplayManager:
         self.font_emoji = None
         for font_path in emoji_font_paths:
             try:
-                self.font_emoji = ImageFont.truetype(font_path, 14)
+                self.font_emoji = ImageFont.truetype(font_path, 28)
                 print(f"Loaded emoji font from: {font_path}")
                 break
             except:
@@ -893,12 +893,12 @@ class DisplayManager:
         # Current emoji (large)
         if len(emojis) > 0:
             selected_emoji = emojis[selected_index]
-            draw.rectangle([(x + 20, y), (x + 80, y + 40)], outline=0, width=2)
+            draw.rectangle([(x + 10, y), (x + 60, y + 50)], outline=0, width=2)
             # Use emoji font for proper Unicode emoji rendering
-            draw.text((x + 35, y + 10), selected_emoji, fill=0, font=self.font_emoji)
+            draw.text((x + 18, y + 8), selected_emoji, fill=0, font=self.font_emoji)
 
             # Show index
-            draw.text((x, y + 50), f"{selected_index + 1}/{len(emojis)}", fill=0, font=self.font_small)
+            draw.text((x + 70, y + 15), f"{selected_index + 1}/{len(emojis)}", fill=0, font=self.font_small)
 
         # To: friend name
         draw.text((x, y + 70), f"To: {friend_name}", fill=0, font=self.font_small)
