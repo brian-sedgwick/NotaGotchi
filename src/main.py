@@ -184,6 +184,7 @@ class NotAGotchiApp:
         # Main menu navigation
         self.screen_manager.register_action('care', self._action_care)
         self.screen_manager.register_action('inbox', self._action_inbox)
+        self.screen_manager.register_action('view_message', self._action_view_message)
         self.screen_manager.register_action('friends', self._action_friends)
         self.screen_manager.register_action('requests', self._action_requests)
 
@@ -328,6 +329,15 @@ class NotAGotchiApp:
         else:
             self.screen_manager.set_inbox_messages([])
         self.screen_manager.set_screen(config.ScreenState.INBOX)
+
+    def _action_view_message(self):
+        """Handle viewing a message - marks it as read"""
+        message = self.screen_manager.selected_message
+        if message and self.message_manager:
+            msg_id = message.get('message_id')
+            if msg_id:
+                self.message_manager.mark_as_read(msg_id)
+                message['is_read'] = True  # Update cached object
 
     def _save_pet(self):
         """Save pet state to database"""
@@ -906,11 +916,6 @@ class NotAGotchiApp:
         unread_messages = self.message_manager.get_unread_count() if self.message_manager else 0
 
         message = self.screen_manager.selected_message
-        if message:
-            # Mark as read when viewing
-            msg_id = message.get('message_id')
-            if msg_id and self.message_manager:
-                self.message_manager.mark_as_read(msg_id)
 
         return self.display.draw_message_detail(
             message or {},

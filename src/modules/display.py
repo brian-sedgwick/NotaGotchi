@@ -674,9 +674,9 @@ class DisplayManager:
                     if i == selected_index:
                         draw.rectangle([(x - 2, y_pos - 1),
                                       (self.width - 5, y_pos + item_height - 2)], fill=0)
-                        draw.text((x, y_pos), line, fill=1, font=self.font_medium)
+                        draw.text((x, y_pos), line, fill=1, font=self.font_emoji)
                     else:
-                        draw.text((x, y_pos), line, fill=0, font=self.font_medium)
+                        draw.text((x, y_pos), line, fill=0, font=self.font_emoji)
                 else:
                     # Back option
                     if i == selected_index:
@@ -745,7 +745,7 @@ class DisplayManager:
         current_line = ""
         for word in words:
             test_line = current_line + (" " if current_line else "") + word
-            bbox = draw.textbbox((0, 0), test_line, font=self.font_medium)
+            bbox = draw.textbbox((0, 0), test_line, font=self.font_emoji)
             if bbox[2] - bbox[0] <= max_width:
                 current_line = test_line
             else:
@@ -757,7 +757,7 @@ class DisplayManager:
 
         # Draw wrapped lines
         for line in lines[:4]:  # Max 4 lines with larger font
-            draw.text((x, y), line, fill=0, font=self.font_medium)
+            draw.text((x, y), line, fill=0, font=self.font_emoji)
             y += 16
 
         # Hint at bottom
