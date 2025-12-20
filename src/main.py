@@ -146,11 +146,16 @@ class NotAGotchiApp:
 
     def _register_actions(self):
         """Register callbacks for menu actions"""
+        # Care actions
         self.screen_manager.register_action('feed', self._action_feed)
         self.screen_manager.register_action('play', self._action_play)
         self.screen_manager.register_action('clean', self._action_clean)
         self.screen_manager.register_action('sleep', self._action_sleep)
         self.screen_manager.register_action('reset', self._action_reset)
+        # Main menu navigation
+        self.screen_manager.register_action('care', self._action_care)
+        self.screen_manager.register_action('friends', self._action_friends)
+        self.screen_manager.register_action('requests', self._action_requests)
 
     def _load_or_create_pet(self):
         """Load existing pet or create new one"""
@@ -261,6 +266,30 @@ class NotAGotchiApp:
             confirm_reset
         )
 
+    def _action_care(self):
+        """Open care submenu"""
+        self.screen_manager.set_screen(config.ScreenState.CARE_MENU)
+
+    def _action_friends(self):
+        """Open friends list"""
+        # Update friends list from social coordinator
+        if self.social_coordinator:
+            friends = self.social_coordinator.get_friends()
+            self.screen_manager.set_friends_list(friends)
+        else:
+            self.screen_manager.set_friends_list([])
+        self.screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
+
+    def _action_requests(self):
+        """Open friend requests"""
+        # Update pending requests from social coordinator
+        if self.social_coordinator:
+            requests = self.social_coordinator.get_pending_requests()
+            self.screen_manager.set_pending_requests(requests)
+        else:
+            self.screen_manager.set_pending_requests([])
+        self.screen_manager.set_screen(config.ScreenState.FRIEND_REQUESTS)
+
     def _save_pet(self):
         """Save pet state to database"""
         if self.pet is None:
@@ -323,8 +352,17 @@ class NotAGotchiApp:
                 action = self.screen_manager.handle_input(event)
 
                 if action:
-                    # Handle special actions
-                    if action == "name_entry_complete":
+                    # Handle tuple actions (social features)
+                    if isinstance(action, tuple):
+                        action_type, data = action
+                        if action_type == "send_message":
+                            self._handle_send_message(data)
+                        elif action_type == "send_friend_request":
+                            self._handle_send_friend_request(data)
+                        elif action_type == "handle_friend_request":
+                            self._handle_friend_request_action(data)
+                    # Handle string actions
+                    elif action == "name_entry_complete":
                         self._complete_name_entry()
                     else:
                         # Trigger registered action
@@ -352,6 +390,73 @@ class NotAGotchiApp:
 
         self.action_occurred = True  # Trigger full refresh
         self.screen_manager.go_home()
+
+    def _handle_send_message(self, data):
+        """Handle sending a message to a friend"""
+        if not self.social_coordinator:
+            print("Social features not available")
+            return
+
+        to_device = data.get('to_device')
+        content = data.get('content', '')
+        msg_type = data.get('type', 'custom')
+
+        print(f"Sending {msg_type} message to {data.get('to_name')}: {content}")
+
+        # Send via social coordinator
+        success = self.social_coordinator.send_message(to_device, content)
+
+        if success:
+            print("Message sent successfully")
+        else:
+            print("Failed to send message (queued for retry)")
+
+        self.action_occurred = True
+        self.screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
+
+    def _handle_send_friend_request(self, device):
+        """Handle sending a friend request"""
+        if not self.social_coordinator:
+            print("Social features not available")
+            return
+
+        device_name = device.get('name', 'Unknown')
+        device_ip = device.get('ip')
+
+        print(f"Sending friend request to {device_name}")
+
+        success = self.social_coordinator.send_friend_request(device_ip)
+
+        if success:
+            print(f"Friend request sent to {device_name}")
+        else:
+            print(f"Failed to send friend request to {device_name}")
+
+        self.action_occurred = True
+        self.screen_manager.set_screen(config.ScreenState.FIND_FRIENDS)
+
+    def _handle_friend_request_action(self, request):
+        """Handle accepting/rejecting a friend request"""
+        if not self.social_coordinator:
+            print("Social features not available")
+            return
+
+        from_name = request.get('from_pet_name', 'Unknown')
+
+        def accept_request():
+            print(f"Accepting friend request from {from_name}")
+            self.social_coordinator.accept_friend_request(request)
+            self.action_occurred = True
+            # Refresh the requests list
+            requests = self.social_coordinator.get_pending_requests()
+            self.screen_manager.set_pending_requests(requests)
+            if len(requests) == 0:
+                self.screen_manager.set_screen(config.ScreenState.MENU)
+
+        self.screen_manager.show_confirmation(
+            f"Accept {from_name} as friend?",
+            accept_request
+        )
 
     def _render_display(self):
         """Render current screen to display"""
@@ -384,6 +489,22 @@ class NotAGotchiApp:
             image = self._render_name_entry_screen()
         elif self.screen_manager.is_confirmation():
             image = self._render_confirmation_screen()
+        elif self.screen_manager.is_care_menu():
+            image = self._render_care_menu_screen()
+        elif self.screen_manager.is_friends_list():
+            image = self._render_friends_list_screen()
+        elif self.screen_manager.is_find_friends():
+            image = self._render_find_friends_screen()
+        elif self.screen_manager.is_friend_requests():
+            image = self._render_friend_requests_screen()
+        elif self.screen_manager.is_message_type_menu():
+            image = self._render_message_type_menu_screen()
+        elif self.screen_manager.is_emoji_select():
+            image = self._render_emoji_select_screen()
+        elif self.screen_manager.is_preset_select():
+            image = self._render_preset_select_screen()
+        elif self.screen_manager.is_text_compose():
+            image = self._render_text_compose_screen()
         else:
             return  # Unknown screen
 
@@ -449,7 +570,7 @@ class NotAGotchiApp:
         return self.display.draw_menu(
             menu_state['items'],
             menu_state['selected_index'],
-            "Care Menu",
+            "Menu",
             pet_sprite,
             wifi_connected=wifi_connected,
             online_friends=online_friends
@@ -470,6 +591,151 @@ class NotAGotchiApp:
         return self.display.draw_confirmation(
             state['message'],
             state['selected']
+        )
+
+    def _get_pet_sprite(self):
+        """Helper to get current pet sprite"""
+        if self.pet is None:
+            return None
+        sprite_name = self.pet.get_current_sprite()
+        pet_sprite = self.sprite_manager.get_sprite_by_name(sprite_name)
+        if pet_sprite is None:
+            pet_sprite = self.sprite_manager.create_placeholder_sprite()
+        return pet_sprite
+
+    def _get_wifi_status(self):
+        """Helper to get WiFi connection status"""
+        return self.wifi_manager.running if self.wifi_manager else False
+
+    def _get_online_friends_count(self):
+        """Helper to get online friends count"""
+        if self.social_coordinator:
+            return len(self.social_coordinator.get_friends(online_only=True))
+        return 0
+
+    def _render_care_menu_screen(self):
+        """Render care menu screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = self._get_online_friends_count()
+
+        state = self.screen_manager.get_care_menu_state()
+        return self.display.draw_menu(
+            state['items'],
+            state['selected_index'],
+            "Care",
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
+        )
+
+    def _render_friends_list_screen(self):
+        """Render friends list screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = self._get_online_friends_count()
+
+        state = self.screen_manager.get_friends_list_state()
+        return self.display.draw_friends_list(
+            state['friends'],
+            state['selected_index'],
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
+        )
+
+    def _render_find_friends_screen(self):
+        """Render find friends screen"""
+        # Trigger device discovery when entering this screen
+        if self.social_coordinator:
+            devices = self.social_coordinator.discover_new_devices()
+            self.screen_manager.set_discovered_devices(devices)
+
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = self._get_online_friends_count()
+
+        state = self.screen_manager.get_find_friends_state()
+        return self.display.draw_find_friends(
+            state['devices'],
+            state['selected_index'],
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
+        )
+
+    def _render_friend_requests_screen(self):
+        """Render friend requests screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = self._get_online_friends_count()
+
+        state = self.screen_manager.get_friend_requests_state()
+        return self.display.draw_friend_requests(
+            state['requests'],
+            state['selected_index'],
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
+        )
+
+    def _render_message_type_menu_screen(self):
+        """Render message type selection screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = self._get_online_friends_count()
+
+        state = self.screen_manager.get_message_type_menu_state()
+        title = f"To: {state['friend_name']}" if state['friend_name'] else "Send"
+        return self.display.draw_menu(
+            state['items'],
+            state['selected_index'],
+            title,
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
+        )
+
+    def _render_emoji_select_screen(self):
+        """Render emoji selection screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = self._get_online_friends_count()
+
+        state = self.screen_manager.get_emoji_select_state()
+        return self.display.draw_emoji_select(
+            state['emojis'],
+            state['selected_index'],
+            state['friend_name'],
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
+        )
+
+    def _render_preset_select_screen(self):
+        """Render preset message selection screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = self._get_online_friends_count()
+
+        state = self.screen_manager.get_preset_select_state()
+        return self.display.draw_preset_select(
+            state['presets'],
+            state['selected_index'],
+            state['friend_name'],
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends
+        )
+
+    def _render_text_compose_screen(self):
+        """Render custom text compose screen"""
+        state = self.screen_manager.get_text_compose_state()
+        return self.display.draw_text_input(
+            state['current_text'],
+            state['char_pool'],
+            state['selected_char_index'],
+            title=f"To: {state['friend_name']}" if state['friend_name'] else "Compose"
         )
 
     def run(self):
