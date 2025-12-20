@@ -238,21 +238,63 @@ DB_CHECK_SAME_THREAD = False  # Allow multi-threaded access
 class ScreenState:
     """Enum for screen states"""
     HOME = "home"              # Status view
-    MENU = "menu"              # Care actions menu
+    MENU = "menu"              # Main menu (Care, Friends, Requests, Reset)
     NAME_ENTRY = "name_entry"  # Text input for naming
     SETTINGS = "settings"      # System settings
     CONFIRM = "confirm"        # Confirmation dialog
+    # Care submenu
+    CARE_MENU = "care_menu"    # Pet care actions (Feed, Play, Clean, Sleep)
+    # Social screens
+    FRIENDS_LIST = "friends_list"          # View friends with online status
+    FIND_FRIENDS = "find_friends"          # Discover nearby devices
+    FRIEND_REQUESTS = "friend_requests"    # View/accept/reject requests
+    # Message composition screens
+    MESSAGE_TYPE_MENU = "message_type_menu"  # Choose message type
+    EMOJI_SELECT = "emoji_select"            # Pick emoji to send
+    PRESET_SELECT = "preset_select"          # Pick preset message
+    TEXT_COMPOSE = "text_compose"            # Custom text entry
 
 # ============================================================================
 # MENU STRUCTURE
 # ============================================================================
+# Main menu - high level navigation
 MAIN_MENU = [
+    {"label": "Care", "action": "care"},            # Opens CARE_MENU
+    {"label": "Friends", "action": "friends"},      # Opens FRIENDS_LIST
+    {"label": "Requests", "action": "requests"},    # Opens FRIEND_REQUESTS
+    {"label": "Reset Pet", "action": "reset"},
+    {"label": "Back", "action": "back"}
+]
+
+# Care submenu - pet care actions
+CARE_MENU = [
     {"label": "Feed", "action": "feed"},
     {"label": "Play", "action": "play"},
     {"label": "Clean", "action": "clean"},
     {"label": "Sleep", "action": "sleep"},
-    {"label": "Reset Pet", "action": "reset"},
     {"label": "Back", "action": "back"}
+]
+
+# Message type selection menu
+MESSAGE_TYPE_MENU = [
+    {"label": "Emoji", "action": "msg_emoji"},
+    {"label": "Quick Msg", "action": "msg_preset"},
+    {"label": "Custom", "action": "msg_custom"},
+    {"label": "Back", "action": "back"}
+]
+
+# Preset messages for quick send
+MESSAGE_PRESETS = [
+    "Hi!", "Hello!", "How are you?", "Want to play?",
+    "Yes!", "No", "Maybe", "Thanks!", "Sorry!",
+    "I'm happy!", "Feeling sad", "So tired", "LOL", "Bye!"
+]
+
+# Emojis for quick send (text representations for e-ink)
+EMOJI_LIST = [
+    ":)", ":(", ":D", ";)", ":P",
+    "<3", "*", "!", "?", "ZZZ",
+    ":O", "XD", ":/", ">:(", "^_^"
 ]
 
 # ============================================================================

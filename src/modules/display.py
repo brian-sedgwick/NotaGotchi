@@ -257,7 +257,7 @@ class DisplayManager:
         return image
 
     def draw_text_input(self, current_text: str, char_pool: str,
-                       selected_char_index: int) -> Image.Image:
+                       selected_char_index: int, title: str = "Enter Name:") -> Image.Image:
         """
         Draw text input screen for naming
 
@@ -265,6 +265,7 @@ class DisplayManager:
             current_text: Text entered so far
             char_pool: Available characters
             selected_char_index: Index of currently selected character
+            title: Title to display at top
 
         Returns:
             PIL Image of the text input screen
@@ -274,7 +275,7 @@ class DisplayManager:
         draw = ImageDraw.Draw(image)
 
         # Title
-        draw.text((5, 2), "Enter Name:", fill=0, font=self.font_medium)
+        draw.text((5, 2), title, fill=0, font=self.font_medium)
         draw.line([(0, 15), (self.width, 15)], fill=0, width=1)
 
         # Current text (large)
@@ -349,6 +350,306 @@ class DisplayManager:
         else:
             draw.rectangle(no_box, outline=0, width=2)
             draw.text((157, 87), "No", fill=0, font=self.font_small)
+
+        return image
+
+    def draw_friends_list(self, friends: list, selected_index: int,
+                          pet_sprite: Optional[Image.Image],
+                          wifi_connected: bool = False,
+                          online_friends: int = 0) -> Image.Image:
+        """
+        Draw friends list screen
+
+        Args:
+            friends: List of friend dictionaries with 'pet_name', 'online' keys
+            selected_index: Currently selected friend index
+            pet_sprite: Pet sprite image
+            wifi_connected: WiFi connection status
+            online_friends: Number of online friends
+
+        Returns:
+            PIL Image of friends list screen
+        """
+        # Create blank canvas
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw header
+        self._draw_header(draw, "Friends", "", wifi_connected, online_friends)
+
+        # Draw pet sprite on left (if available)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+
+        # Draw friends list on right side
+        x = config.STATUS_AREA_X + 5
+        y = config.STATUS_AREA_Y + 2
+        item_height = 18
+
+        # Build items list: friends + "Find Friends" option
+        items = []
+        for friend in friends:
+            name = friend.get('pet_name', 'Unknown')
+            online = friend.get('online', False)
+            prefix = "+" if online else "o"  # + for online, o for offline
+            items.append(f"{prefix} {name}")
+
+        items.append("> Find Friends")  # Always last option
+
+        # Draw visible items
+        visible_items = 5  # Number of items that fit
+        start_idx = max(0, selected_index - visible_items + 1)
+        end_idx = min(len(items), start_idx + visible_items)
+
+        for i in range(start_idx, end_idx):
+            item_text = items[i]
+            y_pos = y + (i - start_idx) * item_height
+
+            if i == selected_index:
+                # Highlight selected item
+                draw.rectangle([(x - 2, y_pos - 1),
+                              (self.width - 5, y_pos + item_height - 3)],
+                              fill=0)
+                draw.text((x, y_pos), item_text, fill=1, font=self.font_small)
+            else:
+                draw.text((x, y_pos), item_text, fill=0, font=self.font_small)
+
+        return image
+
+    def draw_find_friends(self, devices: list, selected_index: int,
+                          pet_sprite: Optional[Image.Image],
+                          wifi_connected: bool = False,
+                          online_friends: int = 0) -> Image.Image:
+        """
+        Draw find friends (device discovery) screen
+
+        Args:
+            devices: List of discovered device dictionaries
+            selected_index: Currently selected device index
+            pet_sprite: Pet sprite image
+            wifi_connected: WiFi connection status
+            online_friends: Number of online friends
+
+        Returns:
+            PIL Image of find friends screen
+        """
+        # Create blank canvas
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw header
+        self._draw_header(draw, "Find Friends", "", wifi_connected, online_friends)
+
+        # Draw pet sprite on left (if available)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+
+        # Draw devices list on right side
+        x = config.STATUS_AREA_X + 5
+        y = config.STATUS_AREA_Y + 2
+        item_height = 18
+
+        if len(devices) == 0:
+            draw.text((x, y), "Scanning...", fill=0, font=self.font_small)
+            draw.text((x, y + 20), "No devices found", fill=0, font=self.font_small)
+            draw.text((x, y + 50), "Press to go back", fill=0, font=self.font_small)
+        else:
+            # Draw device list
+            visible_items = 5
+            start_idx = max(0, selected_index - visible_items + 1)
+            end_idx = min(len(devices), start_idx + visible_items)
+
+            for i in range(start_idx, end_idx):
+                device = devices[i]
+                name = device.get('name', 'Unknown')
+                y_pos = y + (i - start_idx) * item_height
+
+                if i == selected_index:
+                    draw.rectangle([(x - 2, y_pos - 1),
+                                  (self.width - 5, y_pos + item_height - 3)],
+                                  fill=0)
+                    draw.text((x, y_pos), name, fill=1, font=self.font_small)
+                else:
+                    draw.text((x, y_pos), name, fill=0, font=self.font_small)
+
+            # Hint at bottom
+            draw.text((x, self.height - 15), "Press to add", fill=0, font=self.font_small)
+
+        return image
+
+    def draw_friend_requests(self, requests: list, selected_index: int,
+                             pet_sprite: Optional[Image.Image],
+                             wifi_connected: bool = False,
+                             online_friends: int = 0) -> Image.Image:
+        """
+        Draw friend requests screen
+
+        Args:
+            requests: List of pending friend request dictionaries
+            selected_index: Currently selected request index
+            pet_sprite: Pet sprite image
+            wifi_connected: WiFi connection status
+            online_friends: Number of online friends
+
+        Returns:
+            PIL Image of friend requests screen
+        """
+        # Create blank canvas
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw header
+        self._draw_header(draw, "Requests", "", wifi_connected, online_friends)
+
+        # Draw pet sprite on left (if available)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+
+        # Draw requests list on right side
+        x = config.STATUS_AREA_X + 5
+        y = config.STATUS_AREA_Y + 2
+        item_height = 18
+
+        if len(requests) == 0:
+            draw.text((x, y), "No requests", fill=0, font=self.font_small)
+            draw.text((x, y + 30), "Press to go back", fill=0, font=self.font_small)
+        else:
+            # Draw count
+            draw.text((x, y), f"Pending: {len(requests)}", fill=0, font=self.font_small)
+            y += 15
+
+            # Draw request list
+            visible_items = 4
+            start_idx = max(0, selected_index - visible_items + 1)
+            end_idx = min(len(requests), start_idx + visible_items)
+
+            for i in range(start_idx, end_idx):
+                request = requests[i]
+                name = request.get('from_pet_name', 'Unknown')
+                y_pos = y + (i - start_idx) * item_height
+
+                if i == selected_index:
+                    draw.rectangle([(x - 2, y_pos - 1),
+                                  (self.width - 5, y_pos + item_height - 3)],
+                                  fill=0)
+                    draw.text((x, y_pos), name, fill=1, font=self.font_small)
+                else:
+                    draw.text((x, y_pos), name, fill=0, font=self.font_small)
+
+            # Hint at bottom
+            draw.text((x, self.height - 15), "Press to accept", fill=0, font=self.font_small)
+
+        return image
+
+    def draw_emoji_select(self, emojis: list, selected_index: int,
+                          friend_name: str, pet_sprite: Optional[Image.Image],
+                          wifi_connected: bool = False,
+                          online_friends: int = 0) -> Image.Image:
+        """
+        Draw emoji selection screen
+
+        Args:
+            emojis: List of emoji strings
+            selected_index: Currently selected emoji index
+            friend_name: Name of friend to send to
+            pet_sprite: Pet sprite image
+            wifi_connected: WiFi connection status
+            online_friends: Number of online friends
+
+        Returns:
+            PIL Image of emoji select screen
+        """
+        # Create blank canvas
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw header
+        self._draw_header(draw, "Emoji", "", wifi_connected, online_friends)
+
+        # Draw pet sprite on left (if available)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+
+        # Draw emoji selector on right side
+        x = config.STATUS_AREA_X + 5
+        y = config.STATUS_AREA_Y + 5
+
+        # Current emoji (large)
+        if len(emojis) > 0:
+            selected_emoji = emojis[selected_index]
+            draw.rectangle([(x + 20, y), (x + 80, y + 40)], outline=0, width=2)
+            draw.text((x + 35, y + 10), selected_emoji, fill=0, font=self.font_large)
+
+            # Show index
+            draw.text((x, y + 50), f"{selected_index + 1}/{len(emojis)}", fill=0, font=self.font_small)
+
+        # To: friend name
+        draw.text((x, y + 70), f"To: {friend_name}", fill=0, font=self.font_small)
+
+        # Hint
+        draw.text((x, self.height - 15), "Press to send", fill=0, font=self.font_small)
+
+        return image
+
+    def draw_preset_select(self, presets: list, selected_index: int,
+                           friend_name: str, pet_sprite: Optional[Image.Image],
+                           wifi_connected: bool = False,
+                           online_friends: int = 0) -> Image.Image:
+        """
+        Draw preset message selection screen
+
+        Args:
+            presets: List of preset message strings
+            selected_index: Currently selected preset index
+            friend_name: Name of friend to send to
+            pet_sprite: Pet sprite image
+            wifi_connected: WiFi connection status
+            online_friends: Number of online friends
+
+        Returns:
+            PIL Image of preset select screen
+        """
+        # Create blank canvas
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw header
+        self._draw_header(draw, "Quick Msg", "", wifi_connected, online_friends)
+
+        # Draw pet sprite on left (if available)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+
+        # Draw preset list on right side
+        x = config.STATUS_AREA_X + 5
+        y = config.STATUS_AREA_Y + 2
+        item_height = 16
+
+        # Draw preset list
+        visible_items = 5
+        start_idx = max(0, selected_index - visible_items + 1)
+        end_idx = min(len(presets), start_idx + visible_items)
+
+        for i in range(start_idx, end_idx):
+            preset = presets[i]
+            # Truncate if too long
+            if len(preset) > 14:
+                preset = preset[:12] + ".."
+            y_pos = y + (i - start_idx) * item_height
+
+            if i == selected_index:
+                draw.rectangle([(x - 2, y_pos - 1),
+                              (self.width - 5, y_pos + item_height - 2)],
+                              fill=0)
+                draw.text((x, y_pos), preset, fill=1, font=self.font_small)
+            else:
+                draw.text((x, y_pos), preset, fill=0, font=self.font_small)
+
+        # To: friend name
+        draw.text((x, self.height - 28), f"To: {friend_name}", fill=0, font=self.font_small)
+
+        # Hint
+        draw.text((x, self.height - 15), "Press to send", fill=0, font=self.font_small)
 
         return image
 
