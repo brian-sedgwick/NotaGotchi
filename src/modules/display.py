@@ -615,13 +615,13 @@ class DisplayManager:
         # Draw messages list on right side
         x = config.STATUS_AREA_X + 5
         y = config.STATUS_AREA_Y + 2
-        item_height = 22  # Taller to fit sender + preview
+        item_height = 13  # Single line per message
 
         # Build items list: messages + Back option
         items = []
         for msg in messages:
-            sender = msg.get('from_pet_name', 'Unknown')[:8]  # Truncate long names
-            content = msg.get('content', '')[:12]  # Preview
+            sender = msg.get('from_pet_name', 'Unknown')[:6]  # Truncate long names
+            content = msg.get('content', '')[:10]  # Short preview
             is_read = msg.get('is_read', False)
             # Format time ago
             timestamp = msg.get('received_at', 0)
@@ -637,12 +637,14 @@ class DisplayManager:
                     time_str = f"{int(age_secs / 86400)}d"
             else:
                 time_str = ""
-            items.append({
-                'sender': sender,
-                'preview': content,
-                'time': time_str,
-                'is_read': is_read
-            })
+
+            # Build single-line display: "* Sender: preview (1h)" or "Sender: preview (1h)"
+            line = sender + ": " + (content if content else "...")
+            if time_str:
+                line += f" ({time_str})"
+            if not is_read:
+                line = "* " + line
+            items.append(line)
 
         if len(messages) == 0:
             draw.text((x, y), "No messages", fill=0, font=self.font_small)
@@ -656,7 +658,7 @@ class DisplayManager:
                 draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
         else:
             # Draw message list
-            visible_items = 4
+            visible_items = 7  # More items fit with single-line display
             # Account for Back option
             total_items = len(items) + 1  # +1 for Back
             start_idx = max(0, selected_index - visible_items + 1)
@@ -666,38 +668,22 @@ class DisplayManager:
                 y_pos = y + (i - start_idx) * item_height
 
                 if i < len(items):
-                    # Message item
-                    item = items[i]
-                    # First line: sender + time
-                    line1 = f"{item['sender']}"
-                    if item['time']:
-                        line1 += f" ({item['time']})"
-                    # Second line: preview
-                    line2 = item['preview'] if item['preview'] else "(empty)"
-                    # Add unread indicator
-                    if not item['is_read']:
-                        line1 = "* " + line1
-
+                    # Message item (single line)
+                    line = items[i]
                     if i == selected_index:
                         draw.rectangle([(x - 2, y_pos - 1),
-                                      (self.width - 5, y_pos + item_height - 3)], fill=0)
-                        draw.text((x, y_pos), line1, fill=1, font=self.font_small)
-                        draw.text((x, y_pos + 10), line2, fill=1, font=self.font_small)
+                                      (self.width - 5, y_pos + item_height - 2)], fill=0)
+                        draw.text((x, y_pos), line, fill=1, font=self.font_small)
                     else:
-                        draw.text((x, y_pos), line1, fill=0, font=self.font_small)
-                        draw.text((x, y_pos + 10), line2, fill=0, font=self.font_small)
+                        draw.text((x, y_pos), line, fill=0, font=self.font_small)
                 else:
                     # Back option
                     if i == selected_index:
                         draw.rectangle([(x - 2, y_pos - 1),
-                                      (self.width - 5, y_pos + 16)], fill=0)
+                                      (self.width - 5, y_pos + item_height - 2)], fill=0)
                         draw.text((x, y_pos), "< Back", fill=1, font=self.font_small)
                     else:
                         draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
-
-            # Hint at bottom
-            if selected_index < len(messages):
-                draw.text((x, self.height - 15), "Press to read", fill=0, font=self.font_small)
 
         return image
 
