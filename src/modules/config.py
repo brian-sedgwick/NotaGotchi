@@ -248,6 +248,9 @@ class ScreenState:
     FRIENDS_LIST = "friends_list"          # View friends with online status
     FIND_FRIENDS = "find_friends"          # Discover nearby devices
     FRIEND_REQUESTS = "friend_requests"    # View/accept/reject requests
+    # Message screens
+    INBOX = "inbox"                          # View received messages
+    MESSAGE_DETAIL = "message_detail"        # View single message
     # Message composition screens
     MESSAGE_TYPE_MENU = "message_type_menu"  # Choose message type
     EMOJI_SELECT = "emoji_select"            # Pick emoji to send
@@ -260,6 +263,7 @@ class ScreenState:
 # Main menu - high level navigation
 MAIN_MENU = [
     {"label": "Care", "action": "care"},            # Opens CARE_MENU
+    {"label": "Inbox", "action": "inbox"},          # Opens INBOX
     {"label": "Friends", "action": "friends"},      # Opens FRIENDS_LIST
     {"label": "Requests", "action": "requests"},    # Opens FRIEND_REQUESTS
     {"label": "Reset Pet", "action": "reset"},

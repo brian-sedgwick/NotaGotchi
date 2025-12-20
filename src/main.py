@@ -178,6 +178,7 @@ class NotAGotchiApp:
         self.screen_manager.register_action('reset', self._action_reset)
         # Main menu navigation
         self.screen_manager.register_action('care', self._action_care)
+        self.screen_manager.register_action('inbox', self._action_inbox)
         self.screen_manager.register_action('friends', self._action_friends)
         self.screen_manager.register_action('requests', self._action_requests)
 
@@ -312,6 +313,16 @@ class NotAGotchiApp:
         else:
             self.screen_manager.set_pending_requests([])
         self.screen_manager.set_screen(config.ScreenState.FRIEND_REQUESTS)
+
+    def _action_inbox(self):
+        """Open inbox"""
+        # Get recent messages from message manager
+        if self.message_manager:
+            messages = self.message_manager.get_recent_messages(limit=20)
+            self.screen_manager.set_inbox_messages(messages)
+        else:
+            self.screen_manager.set_inbox_messages([])
+        self.screen_manager.set_screen(config.ScreenState.INBOX)
 
     def _save_pet(self):
         """Save pet state to database"""
@@ -564,6 +575,10 @@ class NotAGotchiApp:
             image = self._render_preset_select_screen()
         elif self.screen_manager.is_text_compose():
             image = self._render_text_compose_screen()
+        elif self.screen_manager.is_inbox():
+            image = self._render_inbox_screen()
+        elif self.screen_manager.is_message_detail():
+            image = self._render_message_detail_screen()
         else:
             return  # Unknown screen
 
@@ -598,6 +613,7 @@ class NotAGotchiApp:
         # Get WiFi and friend status for header
         wifi_connected = self.wifi_manager.running if self.wifi_manager else False
         online_friends = len(self.social_coordinator.get_friends(online_only=True)) if self.social_coordinator else 0
+        unread_messages = self.message_manager.get_unread_count() if self.message_manager else 0
 
         # Render status screen
         return self.display.draw_status_screen(
@@ -607,7 +623,8 @@ class NotAGotchiApp:
             self.pet.get_age_display(),
             self.current_quote,
             wifi_connected=wifi_connected,
-            online_friends=online_friends
+            online_friends=online_friends,
+            unread_messages=unread_messages
         )
 
     def _render_menu_screen(self):
@@ -624,6 +641,7 @@ class NotAGotchiApp:
         # Get WiFi and friend status for header
         wifi_connected = self.wifi_manager.running if self.wifi_manager else False
         online_friends = len(self.social_coordinator.get_friends(online_only=True)) if self.social_coordinator else 0
+        unread_messages = self.message_manager.get_unread_count() if self.message_manager else 0
 
         menu_state = self.screen_manager.get_menu_state()
         return self.display.draw_menu(
@@ -632,7 +650,8 @@ class NotAGotchiApp:
             "Menu",
             pet_sprite,
             wifi_connected=wifi_connected,
-            online_friends=online_friends
+            online_friends=online_friends,
+            unread_messages=unread_messages
         )
 
     def _render_name_entry_screen(self):
@@ -795,6 +814,44 @@ class NotAGotchiApp:
             state['char_pool'],
             state['selected_char_index'],
             title=f"To: {state['friend_name']}" if state['friend_name'] else "Compose"
+        )
+
+    def _render_inbox_screen(self):
+        """Render inbox screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = len(self.social_coordinator.get_friends(online_only=True)) if self.social_coordinator else 0
+        unread_messages = self.message_manager.get_unread_count() if self.message_manager else 0
+
+        return self.display.draw_inbox(
+            self.screen_manager.inbox_messages,
+            self.screen_manager.inbox_index,
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends,
+            unread_messages=unread_messages
+        )
+
+    def _render_message_detail_screen(self):
+        """Render message detail screen"""
+        pet_sprite = self._get_pet_sprite()
+        wifi_connected = self._get_wifi_status()
+        online_friends = len(self.social_coordinator.get_friends(online_only=True)) if self.social_coordinator else 0
+        unread_messages = self.message_manager.get_unread_count() if self.message_manager else 0
+
+        message = self.screen_manager.selected_message
+        if message:
+            # Mark as read when viewing
+            msg_id = message.get('id')
+            if msg_id and self.message_manager:
+                self.message_manager.mark_as_read(msg_id)
+
+        return self.display.draw_message_detail(
+            message or {},
+            pet_sprite,
+            wifi_connected=wifi_connected,
+            online_friends=online_friends,
+            unread_messages=unread_messages
         )
 
     def run(self):

@@ -46,6 +46,11 @@ class ScreenManager:
         self.compose_buffer = ""  # For custom text compose
         self.compose_char_index = 0
 
+        # Inbox state
+        self.inbox_messages = []
+        self.inbox_index = 0
+        self.selected_message = None
+
         # Action callbacks
         self.action_callbacks: Dict[str, Callable] = {}
 
@@ -85,6 +90,10 @@ class ScreenManager:
         elif screen_state == config.ScreenState.TEXT_COMPOSE:
             self.compose_buffer = ""
             self.compose_char_index = 0
+        elif screen_state == config.ScreenState.INBOX:
+            self.inbox_index = 0
+        elif screen_state == config.ScreenState.MESSAGE_DETAIL:
+            pass  # Keep selected_message as-is
 
     def go_back(self):
         """Return to previous screen"""
@@ -158,6 +167,10 @@ class ScreenManager:
             return self._handle_preset_select_input(event)
         elif self.current_screen == config.ScreenState.TEXT_COMPOSE:
             return self._handle_text_compose_input(event)
+        elif self.current_screen == config.ScreenState.INBOX:
+            return self._handle_inbox_input(event)
+        elif self.current_screen == config.ScreenState.MESSAGE_DETAIL:
+            return self._handle_message_detail_input(event)
 
         return None
 
@@ -496,6 +509,49 @@ class ScreenManager:
 
         return None
 
+    def _handle_inbox_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on inbox screen"""
+        # Items: messages + Back option
+        total_items = len(self.inbox_messages) + 1  # +1 for Back
+
+        if event.type == InputEvent.TYPE_ROTATE_CW:
+            self.inbox_index = (self.inbox_index + 1) % total_items
+
+        elif event.type == InputEvent.TYPE_ROTATE_CCW:
+            self.inbox_index = (self.inbox_index - 1) % total_items
+
+        elif event.type == InputEvent.TYPE_BUTTON_PRESS:
+            if self.inbox_index == len(self.inbox_messages):
+                # Back selected
+                self.set_screen(config.ScreenState.MENU)
+            else:
+                # Message selected - view it
+                self.selected_message = self.inbox_messages[self.inbox_index]
+                self.set_screen(config.ScreenState.MESSAGE_DETAIL)
+                return "view_message"
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            self.set_screen(config.ScreenState.MENU)
+
+        return None
+
+    def _handle_message_detail_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on message detail screen"""
+        if event.type == InputEvent.TYPE_BUTTON_PRESS:
+            # Return to inbox
+            self.set_screen(config.ScreenState.INBOX)
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            # Return to inbox
+            self.set_screen(config.ScreenState.INBOX)
+
+        return None
+
+    def set_inbox_messages(self, messages: list):
+        """Set inbox messages for display"""
+        self.inbox_messages = messages
+        self.inbox_index = 0
+
     def show_confirmation(self, message: str, callback: Callable, reject_callback: Callable = None):
         """
         Show confirmation dialog
@@ -590,6 +646,14 @@ class ScreenManager:
     def is_text_compose(self) -> bool:
         """Check if on text compose screen"""
         return self.current_screen == config.ScreenState.TEXT_COMPOSE
+
+    def is_inbox(self) -> bool:
+        """Check if on inbox screen"""
+        return self.current_screen == config.ScreenState.INBOX
+
+    def is_message_detail(self) -> bool:
+        """Check if on message detail screen"""
+        return self.current_screen == config.ScreenState.MESSAGE_DETAIL
 
     def get_care_menu_state(self) -> Dict[str, Any]:
         """Get current care menu state for rendering"""

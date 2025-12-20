@@ -145,7 +145,8 @@ class DisplayManager:
     def draw_status_screen(self, pet_sprite: Optional[Image.Image],
                           pet_name: str, stats: Dict[str, int],
                           age_display: str, quote: Optional[str] = None,
-                          wifi_connected: bool = False, online_friends: int = 0) -> Image.Image:
+                          wifi_connected: bool = False, online_friends: int = 0,
+                          unread_messages: int = 0) -> Image.Image:
         """
         Draw the main status screen with pet and stats
 
@@ -157,6 +158,7 @@ class DisplayManager:
             quote: Optional quote to display over pet sprite
             wifi_connected: Whether WiFi server is running
             online_friends: Number of online friends
+            unread_messages: Number of unread messages
 
         Returns:
             PIL Image of the complete screen
@@ -186,14 +188,15 @@ class DisplayManager:
         self._draw_stats_bars(image, draw, stats)
 
         # Draw header LAST so it renders on top of any oversized sprites
-        self._draw_header(draw, pet_name, age_display, wifi_connected, online_friends)
+        self._draw_header(draw, pet_name, age_display, wifi_connected, online_friends, unread_messages)
 
         return image
 
     def draw_menu(self, menu_items: List[Dict[str, str]],
                   selected_index: int, title: str = "Menu",
                   pet_sprite: Optional[Image.Image] = None,
-                  wifi_connected: bool = False, online_friends: int = 0) -> Image.Image:
+                  wifi_connected: bool = False, online_friends: int = 0,
+                  unread_messages: int = 0) -> Image.Image:
         """
         Draw a menu screen with pet sprite on left
 
@@ -204,6 +207,7 @@ class DisplayManager:
             pet_sprite: Optional pet sprite to display on left side
             wifi_connected: Whether WiFi server is running
             online_friends: Number of online friends
+            unread_messages: Number of unread messages
 
         Returns:
             PIL Image of the menu screen
@@ -214,7 +218,7 @@ class DisplayManager:
 
         # Draw header with title (use _draw_header for consistency with status icons)
         # Pass title as pet_name and empty age since menu doesn't show age
-        self._draw_header(draw, title, "", wifi_connected, online_friends)
+        self._draw_header(draw, title, "", wifi_connected, online_friends, unread_messages)
 
         # Draw pet sprite on left side (same position as home screen)
         if pet_sprite:
@@ -578,6 +582,202 @@ class DisplayManager:
 
         return image
 
+    def draw_inbox(self, messages: list, selected_index: int,
+                   pet_sprite: Optional[Image.Image] = None,
+                   wifi_connected: bool = False, online_friends: int = 0,
+                   unread_messages: int = 0) -> Image.Image:
+        """
+        Draw inbox screen with message list
+
+        Args:
+            messages: List of message dictionaries with 'from_pet_name', 'content', 'timestamp', 'is_read'
+            selected_index: Currently selected message index
+            pet_sprite: Pet sprite image
+            wifi_connected: WiFi connection status
+            online_friends: Number of online friends
+            unread_messages: Number of unread messages
+
+        Returns:
+            PIL Image of inbox screen
+        """
+        import time as time_module
+
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw header
+        self._draw_header(draw, "Inbox", "", wifi_connected, online_friends, unread_messages)
+
+        # Draw pet sprite on left (if available)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+
+        # Draw messages list on right side
+        x = config.STATUS_AREA_X + 5
+        y = config.STATUS_AREA_Y + 2
+        item_height = 22  # Taller to fit sender + preview
+
+        # Build items list: messages + Back option
+        items = []
+        for msg in messages:
+            sender = msg.get('from_pet_name', 'Unknown')[:8]  # Truncate long names
+            content = msg.get('content', '')[:12]  # Preview
+            is_read = msg.get('is_read', False)
+            # Format time ago
+            timestamp = msg.get('timestamp', 0)
+            if timestamp:
+                age_secs = time_module.time() - timestamp
+                if age_secs < 60:
+                    time_str = "now"
+                elif age_secs < 3600:
+                    time_str = f"{int(age_secs / 60)}m"
+                elif age_secs < 86400:
+                    time_str = f"{int(age_secs / 3600)}h"
+                else:
+                    time_str = f"{int(age_secs / 86400)}d"
+            else:
+                time_str = ""
+            items.append({
+                'sender': sender,
+                'preview': content,
+                'time': time_str,
+                'is_read': is_read
+            })
+
+        if len(messages) == 0:
+            draw.text((x, y), "No messages", fill=0, font=self.font_small)
+            # Still show Back option
+            y_pos = y + 30
+            if selected_index == 0:  # Back is selected
+                draw.rectangle([(x - 2, y_pos - 1),
+                              (self.width - 5, y_pos + 16)], fill=0)
+                draw.text((x, y_pos), "< Back", fill=1, font=self.font_small)
+            else:
+                draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
+        else:
+            # Draw message list
+            visible_items = 4
+            # Account for Back option
+            total_items = len(items) + 1  # +1 for Back
+            start_idx = max(0, selected_index - visible_items + 1)
+            end_idx = min(total_items, start_idx + visible_items)
+
+            for i in range(start_idx, end_idx):
+                y_pos = y + (i - start_idx) * item_height
+
+                if i < len(items):
+                    # Message item
+                    item = items[i]
+                    # First line: sender + time
+                    line1 = f"{item['sender']}"
+                    if item['time']:
+                        line1 += f" ({item['time']})"
+                    # Second line: preview
+                    line2 = item['preview'] if item['preview'] else "(empty)"
+                    # Add unread indicator
+                    if not item['is_read']:
+                        line1 = "* " + line1
+
+                    if i == selected_index:
+                        draw.rectangle([(x - 2, y_pos - 1),
+                                      (self.width - 5, y_pos + item_height - 3)], fill=0)
+                        draw.text((x, y_pos), line1, fill=1, font=self.font_small)
+                        draw.text((x, y_pos + 10), line2, fill=1, font=self.font_small)
+                    else:
+                        draw.text((x, y_pos), line1, fill=0, font=self.font_small)
+                        draw.text((x, y_pos + 10), line2, fill=0, font=self.font_small)
+                else:
+                    # Back option
+                    if i == selected_index:
+                        draw.rectangle([(x - 2, y_pos - 1),
+                                      (self.width - 5, y_pos + 16)], fill=0)
+                        draw.text((x, y_pos), "< Back", fill=1, font=self.font_small)
+                    else:
+                        draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
+
+            # Hint at bottom
+            if selected_index < len(messages):
+                draw.text((x, self.height - 15), "Press to read", fill=0, font=self.font_small)
+
+        return image
+
+    def draw_message_detail(self, message: dict, pet_sprite: Optional[Image.Image] = None,
+                            wifi_connected: bool = False, online_friends: int = 0,
+                            unread_messages: int = 0) -> Image.Image:
+        """
+        Draw full message view
+
+        Args:
+            message: Message dictionary with 'from_pet_name', 'content', 'timestamp'
+            pet_sprite: Pet sprite image
+            wifi_connected: WiFi connection status
+            online_friends: Number of online friends
+            unread_messages: Number of unread messages
+
+        Returns:
+            PIL Image of message detail screen
+        """
+        import time as time_module
+
+        image = Image.new('1', (self.width, self.height), 1)
+        draw = ImageDraw.Draw(image)
+
+        # Draw header with sender name
+        sender = message.get('from_pet_name', 'Unknown')
+        self._draw_header(draw, f"From: {sender}", "", wifi_connected, online_friends, unread_messages)
+
+        # Draw pet sprite on left (if available)
+        if pet_sprite:
+            image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
+
+        # Draw message content on right side
+        x = config.STATUS_AREA_X + 5
+        y = config.STATUS_AREA_Y + 5
+
+        # Format time
+        timestamp = message.get('timestamp', 0)
+        if timestamp:
+            age_secs = time_module.time() - timestamp
+            if age_secs < 60:
+                time_str = "Just now"
+            elif age_secs < 3600:
+                time_str = f"{int(age_secs / 60)} min ago"
+            elif age_secs < 86400:
+                time_str = f"{int(age_secs / 3600)} hr ago"
+            else:
+                time_str = f"{int(age_secs / 86400)} days ago"
+            draw.text((x, y), time_str, fill=0, font=self.font_small)
+            y += 15
+
+        # Draw message content (word-wrapped)
+        content = message.get('content', '')
+        max_width = config.STATUS_AREA_WIDTH - 10
+        # Simple word wrap
+        words = content.split()
+        lines = []
+        current_line = ""
+        for word in words:
+            test_line = current_line + (" " if current_line else "") + word
+            bbox = draw.textbbox((0, 0), test_line, font=self.font_small)
+            if bbox[2] - bbox[0] <= max_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+        if current_line:
+            lines.append(current_line)
+
+        # Draw wrapped lines
+        for line in lines[:5]:  # Max 5 lines
+            draw.text((x, y), line, fill=0, font=self.font_small)
+            y += 12
+
+        # Hint at bottom
+        draw.text((x, self.height - 15), "Press: back", fill=0, font=self.font_small)
+
+        return image
+
     def draw_status_message(self, message: str, submessage: str = "") -> Image.Image:
         """
         Draw a centered status message (toast-style feedback)
@@ -727,8 +927,9 @@ class DisplayManager:
         return image
 
     def _draw_header(self, draw: ImageDraw.Draw, pet_name: str, age: str,
-                     wifi_connected: bool = False, online_friends: int = 0):
-        """Draw header with pet name, age, wifi status, friends count, and battery"""
+                     wifi_connected: bool = False, online_friends: int = 0,
+                     unread_messages: int = 0):
+        """Draw header with pet name, age, wifi status, friends count, mail, and battery"""
         # Background
         draw.rectangle([(0, 0), (self.width, config.HEADER_HEIGHT)],
                       fill=0)
@@ -796,6 +997,26 @@ class DisplayManager:
             # X overlay
             draw.line([(wifi_x, 1), (wifi_x + 9, 10)], fill=1, width=1)
             draw.line([(wifi_x + 9, 1), (wifi_x, 10)], fill=1, width=1)
+
+        # Mail icon with unread count (left of WiFi)
+        if unread_messages > 0:
+            mail_text = str(unread_messages)
+            bbox = draw.textbbox((0, 0), mail_text, font=self.font_small)
+            mail_text_width = bbox[2] - bbox[0]
+
+            # Position: icon then text, to left of WiFi
+            mail_text_x = wifi_x - mail_text_width - 4  # 4px gap from WiFi
+            mail_icon_x = mail_text_x - 10 - 1  # 10px icon, 1px gap
+
+            # Draw envelope shape (8x6 pixels)
+            env_x, env_y = mail_icon_x, 3
+            draw.rectangle([(env_x, env_y), (env_x + 8, env_y + 6)], outline=1)
+            # Envelope flap (V shape)
+            draw.line([(env_x, env_y), (env_x + 4, env_y + 3)], fill=1)
+            draw.line([(env_x + 4, env_y + 3), (env_x + 8, env_y)], fill=1)
+
+            # Draw unread count text
+            draw.text((mail_text_x, 1), mail_text, fill=1, font=self.font_small)
 
     def _get_battery_level(self) -> Optional[int]:
         """
