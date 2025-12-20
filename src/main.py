@@ -814,10 +814,13 @@ class NotAGotchiApp:
         wifi_connected = self._get_wifi_status()
         online_friends = self._get_online_friends_count()
 
-        # Set items from selected category
+        # Set items from selected category (only if category changed)
         category = self.screen_manager.selected_emoji_category
         if category and category in self.emojis:
-            self.screen_manager.set_emoji_items(self.emojis[category])
+            current_loaded = getattr(self, '_loaded_emoji_category', None)
+            if current_loaded != category:
+                self.screen_manager.set_emoji_items(self.emojis[category])
+                self._loaded_emoji_category = category
 
         state = self.screen_manager.get_emoji_select_state()
         return self.display.draw_emoji_select(
@@ -851,10 +854,13 @@ class NotAGotchiApp:
         wifi_connected = self._get_wifi_status()
         online_friends = self._get_online_friends_count()
 
-        # Set items from selected category
+        # Set items from selected category (only if category changed)
         category = self.screen_manager.selected_preset_category
         if category and category in self.preset_messages:
-            self.screen_manager.set_preset_items(self.preset_messages[category])
+            current_loaded = getattr(self, '_loaded_preset_category', None)
+            if current_loaded != category:
+                self.screen_manager.set_preset_items(self.preset_messages[category])
+                self._loaded_preset_category = category
 
         state = self.screen_manager.get_preset_select_state()
         return self.display.draw_preset_select(

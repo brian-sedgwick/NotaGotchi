@@ -719,15 +719,17 @@ class ScreenManager:
         """Check if on preset select screen"""
         return self.current_screen == config.ScreenState.PRESET_SELECT
 
-    def set_emoji_items(self, items: list):
+    def set_emoji_items(self, items: list, reset_index: bool = True):
         """Set current emoji items for selection"""
         self.current_emoji_items = items
-        self.emoji_index = 0
+        if reset_index:
+            self.emoji_index = 0
 
-    def set_preset_items(self, items: list):
+    def set_preset_items(self, items: list, reset_index: bool = True):
         """Set current preset items for selection"""
         self.current_preset_items = items
-        self.preset_index = 0
+        if reset_index:
+            self.preset_index = 0
 
     def is_text_compose(self) -> bool:
         """Check if on text compose screen"""
