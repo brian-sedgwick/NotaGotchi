@@ -245,9 +245,14 @@ class ScreenManager:
             if self.confirmation_selection:
                 # Yes selected
                 if self.confirmation_callback:
+                    current_screen = self.current_screen
                     self.confirmation_callback()
                     self.confirmation_callback = None
-                self.go_home()
+                    # Only go home if callback didn't change the screen
+                    if self.current_screen == current_screen:
+                        self.go_home()
+                else:
+                    self.go_home()
                 return "confirmation_yes"
             else:
                 # No selected
