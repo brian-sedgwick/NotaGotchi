@@ -254,9 +254,8 @@ class NotAGotchiApp:
 
         def confirm_reset():
             print("Resetting pet...")
-            self.pet.reset()
             self.db.log_event(self.pet.id, "reset", notes="Pet was reset")
-            self._save_pet()
+            self.pet = None  # Clear pet so name entry creates fresh pet
             self.action_occurred = True  # Trigger full refresh
             # Start name entry for new pet
             self.screen_manager.start_name_entry()
