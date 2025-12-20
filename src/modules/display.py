@@ -615,7 +615,7 @@ class DisplayManager:
         # Draw messages list on right side
         x = config.STATUS_AREA_X + 5
         y = config.STATUS_AREA_Y + 2
-        item_height = 13  # Single line per message
+        item_height = 18  # Single line per message (medium font)
 
         # Build items list: messages + Back option
         items = []
@@ -648,18 +648,18 @@ class DisplayManager:
             items.append(line)
 
         if len(messages) == 0:
-            draw.text((x, y), "No messages", fill=0, font=self.font_small)
+            draw.text((x, y), "No messages", fill=0, font=self.font_medium)
             # Still show Back option
             y_pos = y + 30
             if selected_index == 0:  # Back is selected
                 draw.rectangle([(x - 2, y_pos - 1),
                               (self.width - 5, y_pos + 16)], fill=0)
-                draw.text((x, y_pos), "< Back", fill=1, font=self.font_small)
+                draw.text((x, y_pos), "< Back", fill=1, font=self.font_medium)
             else:
-                draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
+                draw.text((x, y_pos), "< Back", fill=0, font=self.font_medium)
         else:
             # Draw message list
-            visible_items = 7  # More items fit with single-line display
+            visible_items = 5  # Fewer items with medium font
             # Account for Back option
             total_items = len(items) + 1  # +1 for Back
             start_idx = max(0, selected_index - visible_items + 1)
@@ -674,17 +674,17 @@ class DisplayManager:
                     if i == selected_index:
                         draw.rectangle([(x - 2, y_pos - 1),
                                       (self.width - 5, y_pos + item_height - 2)], fill=0)
-                        draw.text((x, y_pos), line, fill=1, font=self.font_small)
+                        draw.text((x, y_pos), line, fill=1, font=self.font_medium)
                     else:
-                        draw.text((x, y_pos), line, fill=0, font=self.font_small)
+                        draw.text((x, y_pos), line, fill=0, font=self.font_medium)
                 else:
                     # Back option
                     if i == selected_index:
                         draw.rectangle([(x - 2, y_pos - 1),
                                       (self.width - 5, y_pos + item_height - 2)], fill=0)
-                        draw.text((x, y_pos), "< Back", fill=1, font=self.font_small)
+                        draw.text((x, y_pos), "< Back", fill=1, font=self.font_medium)
                     else:
-                        draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
+                        draw.text((x, y_pos), "< Back", fill=0, font=self.font_medium)
 
         return image
 
@@ -733,8 +733,8 @@ class DisplayManager:
                 time_str = f"{int(age_secs / 3600)} hr ago"
             else:
                 time_str = f"{int(age_secs / 86400)} days ago"
-            draw.text((x, y), time_str, fill=0, font=self.font_small)
-            y += 15
+            draw.text((x, y), time_str, fill=0, font=self.font_medium)
+            y += 18
 
         # Draw message content (word-wrapped)
         content = message.get('content', '')
@@ -745,7 +745,7 @@ class DisplayManager:
         current_line = ""
         for word in words:
             test_line = current_line + (" " if current_line else "") + word
-            bbox = draw.textbbox((0, 0), test_line, font=self.font_small)
+            bbox = draw.textbbox((0, 0), test_line, font=self.font_medium)
             if bbox[2] - bbox[0] <= max_width:
                 current_line = test_line
             else:
@@ -756,9 +756,9 @@ class DisplayManager:
             lines.append(current_line)
 
         # Draw wrapped lines
-        for line in lines[:5]:  # Max 5 lines
-            draw.text((x, y), line, fill=0, font=self.font_small)
-            y += 12
+        for line in lines[:4]:  # Max 4 lines with larger font
+            draw.text((x, y), line, fill=0, font=self.font_medium)
+            y += 16
 
         # Hint at bottom
         draw.text((x, self.height - 15), "Press: back", fill=0, font=self.font_small)
