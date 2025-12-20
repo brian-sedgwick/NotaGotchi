@@ -420,6 +420,53 @@ class FriendManager:
                 self.connection.rollback()
                 return False
 
+    def add_friend(self, device_name: str, pet_name: str,
+                   ip: str, port: int) -> bool:
+        """
+        Add a friend directly to the friends list.
+
+        Used when someone accepts OUR friend request - we add them as a friend
+        without going through the request flow.
+
+        Args:
+            device_name: Friend's device name
+            pet_name: Friend's pet name
+            ip: Friend's IP address
+            port: Friend's port
+
+        Returns:
+            True if added successfully
+        """
+        # Check if already friends
+        if self.is_friend(device_name):
+            print(f"Already friends with {device_name}")
+            return False
+
+        # Check friend limit
+        if not self.can_add_more_friends():
+            print(f"❌ Friend limit reached ({config.MAX_FRIENDS} friends)")
+            return False
+
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                current_time = time.time()
+
+                cursor.execute('''
+                    INSERT INTO friends
+                    (device_name, pet_name, last_ip, last_port, last_seen, friendship_established)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (device_name, pet_name, ip, port, current_time, current_time))
+
+                self.connection.commit()
+                print(f"✅ {pet_name} added to friends!")
+                return True
+
+            except sqlite3.Error as e:
+                print(f"❌ Error adding friend: {e}")
+                self.connection.rollback()
+                return False
+
     def remove_friend(self, device_name: str) -> bool:
         """
         Remove a friend from the friends list

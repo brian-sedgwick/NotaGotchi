@@ -72,6 +72,49 @@ QUOTE_BOX_HEIGHT = 24          # Height of quote box area
 QUOTE_BOX_PADDING = 3          # Padding inside quote box
 
 # ============================================================================
+# UI DISPLAY CONSTANTS
+# ============================================================================
+# Font Sizes (used by DisplayManager)
+FONT_SIZE_SMALL = 10
+FONT_SIZE_MEDIUM = 14
+FONT_SIZE_LARGE = 18
+FONT_SIZE_EMOJI = 28
+
+# List Item Rendering
+LIST_ITEM_HEIGHT_SMALL = 14    # For compact lists (preset categories)
+LIST_ITEM_HEIGHT_MEDIUM = 16   # For standard lists (presets, emoji categories)
+LIST_ITEM_HEIGHT_LARGE = 18    # For friends, requests, find friends
+
+# List Item Highlight Offsets (for selection rectangle)
+LIST_HIGHLIGHT_X_OFFSET = 2    # Left padding for highlight rectangle
+LIST_HIGHLIGHT_Y_OFFSET = 1    # Top padding for highlight rectangle
+LIST_HIGHLIGHT_BOTTOM_OFFSET = 2  # Bottom padding for highlight rectangle
+LIST_RIGHT_MARGIN = 5          # Right margin from screen edge
+
+# Standard UI Padding
+UI_PADDING_SMALL = 2
+UI_PADDING_MEDIUM = 5
+UI_PADDING_LARGE = 10
+
+# Menu Item Height
+MENU_ITEM_HEIGHT = 15
+
+# Header Line Position
+HEADER_LINE_Y = 15
+
+# Visible Items Per Screen (based on available space)
+VISIBLE_ITEMS_FRIENDS = 5
+VISIBLE_ITEMS_REQUESTS = 4
+VISIBLE_ITEMS_EMOJI_CATEGORY = 6
+VISIBLE_ITEMS_PRESET_CATEGORY = 7
+VISIBLE_ITEMS_PRESETS = 5
+
+# Text Truncation
+PRESET_MAX_DISPLAY_LENGTH = 14
+SENDER_NAME_MAX_LENGTH = 6
+MESSAGE_PREVIEW_LENGTH = 10
+
+# ============================================================================
 # SPRITE CONFIGURATION
 # ============================================================================
 SPRITE_SIZE = (100, 100)  # Width, Height

@@ -5,8 +5,108 @@ Core pet logic including stats, behavior, growth, and care actions.
 """
 
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from . import config
+
+
+def _clamp_stat(value: float) -> float:
+    """
+    Clamp a stat value to valid bounds [STAT_MIN, STAT_MAX].
+
+    This is a pure function with no side effects.
+
+    Args:
+        value: The stat value to clamp
+
+    Returns:
+        The value clamped to [0, 100]
+    """
+    return max(config.STAT_MIN, min(config.STAT_MAX, value))
+
+
+def calculate_stat_degradation(
+    hunger: float,
+    happiness: float,
+    health: float,
+    energy: float,
+    time_elapsed_minutes: float
+) -> Dict[str, float]:
+    """
+    Calculate stat changes based on time elapsed.
+
+    This is a PURE FUNCTION with no side effects - it only calculates
+    and returns the changes, it does not modify any state.
+
+    Args:
+        hunger: Current hunger level (0-100)
+        happiness: Current happiness level (0-100)
+        health: Current health level (0-100)
+        energy: Current energy level (0-100)
+        time_elapsed_minutes: Time elapsed in minutes
+
+    Returns:
+        Dictionary of stat changes (deltas, not final values)
+    """
+    changes = {
+        'hunger': 0.0,
+        'happiness': 0.0,
+        'health': 0.0,
+        'energy': 0.0
+    }
+
+    # Hunger increases over time
+    changes['hunger'] = config.HUNGER_INCREASE_RATE * time_elapsed_minutes
+
+    # Happiness decreases over time
+    changes['happiness'] = -config.HAPPINESS_DECREASE_RATE * time_elapsed_minutes
+
+    # Health changes based on conditions
+    # Calculate what hunger/happiness will be after applying their changes
+    projected_hunger = hunger + changes['hunger']
+    projected_happiness = happiness + changes['happiness']
+
+    if projected_hunger > config.HEALTH_DEGRADE_THRESHOLD_HUNGER or \
+       projected_happiness < config.HEALTH_DEGRADE_THRESHOLD_HAPPINESS:
+        changes['health'] = -config.HEALTH_DEGRADE_RATE * time_elapsed_minutes
+    elif projected_hunger < config.HEALTH_REGEN_THRESHOLD_HUNGER and \
+         projected_happiness > config.HEALTH_REGEN_THRESHOLD_HAPPINESS:
+        changes['health'] = config.HEALTH_REGEN_RATE * time_elapsed_minutes
+
+    # Energy decreases over time, faster when hungry
+    energy_change = -config.ENERGY_DECREASE_RATE * time_elapsed_minutes
+    fullness = 100 - projected_hunger
+    if fullness < config.ENERGY_LOW_FULLNESS_THRESHOLD:
+        energy_change *= config.ENERGY_LOW_FULLNESS_MULTIPLIER
+    changes['energy'] = energy_change
+
+    return changes
+
+
+def apply_stat_changes(
+    hunger: float,
+    happiness: float,
+    health: float,
+    energy: float,
+    changes: Dict[str, float]
+) -> Tuple[float, float, float, float]:
+    """
+    Apply stat changes and clamp to valid bounds.
+
+    This is a PURE FUNCTION with no side effects.
+
+    Args:
+        hunger, happiness, health, energy: Current stat values
+        changes: Dictionary of changes to apply
+
+    Returns:
+        Tuple of (new_hunger, new_happiness, new_health, new_energy)
+    """
+    new_hunger = _clamp_stat(hunger + changes.get('hunger', 0))
+    new_happiness = _clamp_stat(happiness + changes.get('happiness', 0))
+    new_health = _clamp_stat(health + changes.get('health', 0))
+    new_energy = _clamp_stat(energy + changes.get('energy', 0))
+
+    return new_hunger, new_happiness, new_health, new_energy
 
 
 class Pet:
@@ -55,14 +155,25 @@ class Pet:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Pet':
-        """Create Pet instance from dictionary (e.g., database row)"""
+        """
+        Create Pet instance from dictionary (e.g., database row).
+
+        Validates and clamps all stat values to valid bounds [0, 100]
+        to handle potentially corrupted database values.
+        """
+        # Validate and clamp stat values on load
+        hunger = _clamp_stat(data.get('hunger', config.INITIAL_HUNGER))
+        happiness = _clamp_stat(data.get('happiness', config.INITIAL_HAPPINESS))
+        health = _clamp_stat(data.get('health', config.INITIAL_HEALTH))
+        energy = _clamp_stat(data.get('energy', config.INITIAL_ENERGY))
+
         return cls(
             name=data['name'],
             pet_id=data.get('id'),
-            hunger=data['hunger'],
-            happiness=data['happiness'],
-            health=data['health'],
-            energy=data.get('energy', config.INITIAL_ENERGY),  # Default for old saves
+            hunger=hunger,
+            happiness=happiness,
+            health=health,
+            energy=energy,
             birth_time=data['birth_time'],
             last_update=data['last_update'],
             last_sleep_time=data.get('last_sleep_time', data['birth_time']),  # Default for old saves
@@ -88,7 +199,10 @@ class Pet:
 
     def update_stats(self, current_time: float = None) -> Dict[str, float]:
         """
-        Update pet stats based on time elapsed since last update
+        Update pet stats based on time elapsed since last update.
+
+        Uses pure functions for calculation, then applies side effects
+        (state mutation, evolution checks).
 
         Returns:
             Dictionary of stat changes
@@ -106,62 +220,35 @@ class Pet:
             time_elapsed_minutes = max_elapsed_seconds / 60.0
             print(f"Capped degradation to {config.MAX_DEGRADATION_HOURS} hours")
 
-        # Track changes
-        changes = {
-            'hunger': 0,
-            'happiness': 0,
-            'health': 0,
-            'energy': 0
-        }
+        # PURE: Calculate stat changes using pure function
+        changes = calculate_stat_degradation(
+            self.hunger, self.happiness, self.health, self.energy,
+            time_elapsed_minutes
+        )
 
-        # Update hunger (increases over time)
-        hunger_change = config.HUNGER_INCREASE_RATE * time_elapsed_minutes
-        self.hunger = min(config.STAT_MAX, self.hunger + hunger_change)
-        changes['hunger'] = hunger_change
+        # PURE: Apply changes using pure function
+        new_hunger, new_happiness, new_health, new_energy = apply_stat_changes(
+            self.hunger, self.happiness, self.health, self.energy,
+            changes
+        )
 
-        # Update happiness (decreases over time)
-        happiness_change = config.HAPPINESS_DECREASE_RATE * time_elapsed_minutes
-        self.happiness = max(config.STAT_MIN, self.happiness - happiness_change)
-        changes['happiness'] = -happiness_change
+        # SIDE EFFECT: Apply the calculated values to state
+        self.hunger = new_hunger
+        self.happiness = new_happiness
+        self.health = new_health
+        self.energy = new_energy
 
-        # Update health based on conditions
-        health_change = 0
-
-        # Health degrades if hungry or unhappy
-        if self.hunger > config.HEALTH_DEGRADE_THRESHOLD_HUNGER or \
-           self.happiness < config.HEALTH_DEGRADE_THRESHOLD_HAPPINESS:
-            health_change -= config.HEALTH_DEGRADE_RATE * time_elapsed_minutes
-
-        # Health regenerates if well-fed and happy
-        elif self.hunger < config.HEALTH_REGEN_THRESHOLD_HUNGER and \
-             self.happiness > config.HEALTH_REGEN_THRESHOLD_HAPPINESS:
-            health_change += config.HEALTH_REGEN_RATE * time_elapsed_minutes
-
-        self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + health_change))
-        changes['health'] = health_change
-
-        # Update energy (decreases over time, faster when hungry)
-        energy_change = -config.ENERGY_DECREASE_RATE * time_elapsed_minutes
-
-        # Energy drains faster when pet is hungry (fullness < 30 means hunger > 70)
-        fullness = 100 - self.hunger
-        if fullness < config.ENERGY_LOW_FULLNESS_THRESHOLD:
-            energy_change *= config.ENERGY_LOW_FULLNESS_MULTIPLIER
-
-        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + energy_change))
-        changes['energy'] = energy_change
-
-        # Update age
+        # SIDE EFFECT: Update age
         self.age_seconds += int(time_elapsed_seconds)
 
-        # Check for evolution
+        # SIDE EFFECT: Check for evolution
         old_stage = self.evolution_stage
         self._check_evolution()
         if old_stage != self.evolution_stage:
             self.just_evolved = True
             self.evolution_display_timer = config.EVOLUTION_DISPLAY_DURATION
 
-        # Update last update time
+        # SIDE EFFECT: Update last update time
         self.last_update = current_time
 
         return changes
@@ -175,91 +262,87 @@ class Pet:
                 self.evolution_stage = stage
                 return
 
+    def _apply_care_action(self, action_name: str) -> Dict[str, int]:
+        """
+        Apply a care action's stat changes.
+
+        This is an internal helper that eliminates code duplication
+        across feed(), play(), clean(), and sleep() methods.
+
+        Args:
+            action_name: Name of the action (must be in config.CARE_ACTIONS)
+
+        Returns:
+            Dictionary of stat changes applied
+        """
+        changes = config.CARE_ACTIONS[action_name].copy()
+
+        # Apply changes using the pure function
+        self.hunger, self.happiness, self.health, self.energy = apply_stat_changes(
+            self.hunger, self.happiness, self.health, self.energy,
+            changes
+        )
+
+        return changes
+
     def feed(self) -> Dict[str, int]:
         """
-        Feed the pet
+        Feed the pet.
 
         Returns:
             Dictionary of stat changes (empty dict if dead)
         """
-        # Dead pets cannot be fed
         if not self.is_alive():
             print(f"{self.name} is dead and cannot be fed.")
             return {}
 
-        changes = config.CARE_ACTIONS['feed'].copy()
-
-        self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
-        self.happiness = max(config.STAT_MIN, min(config.STAT_MAX, self.happiness + changes['happiness']))
-        self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + changes['health']))
-        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + changes['energy']))
-
+        changes = self._apply_care_action('feed')
         print(f"{self.name} was fed!")
         return changes
 
     def play(self) -> Dict[str, int]:
         """
-        Play with the pet
+        Play with the pet.
 
         Returns:
             Dictionary of stat changes (empty dict if dead)
         """
-        # Dead pets cannot play
         if not self.is_alive():
             print(f"{self.name} is dead and cannot play.")
             return {}
 
-        changes = config.CARE_ACTIONS['play'].copy()
-
-        self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
-        self.happiness = max(config.STAT_MIN, min(config.STAT_MAX, self.happiness + changes['happiness']))
-        self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + changes['health']))
-        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + changes['energy']))
-
+        changes = self._apply_care_action('play')
         print(f"{self.name} enjoyed playing!")
         return changes
 
     def clean(self) -> Dict[str, int]:
         """
-        Clean the pet
+        Clean the pet.
 
         Returns:
             Dictionary of stat changes (empty dict if dead)
         """
-        # Dead pets cannot be cleaned
         if not self.is_alive():
             print(f"{self.name} is dead and cannot be cleaned.")
             return {}
 
-        changes = config.CARE_ACTIONS['clean'].copy()
-
-        self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
-        self.happiness = max(config.STAT_MIN, min(config.STAT_MAX, self.happiness + changes['happiness']))
-        self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + changes['health']))
-        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + changes['energy']))
-
+        changes = self._apply_care_action('clean')
         print(f"{self.name} is now clean!")
         return changes
 
     def sleep(self) -> Dict[str, int]:
         """
-        Put the pet to sleep
+        Put the pet to sleep.
 
         Returns:
             Dictionary of stat changes (empty dict if dead)
         """
-        # Dead pets cannot sleep
         if not self.is_alive():
             print(f"{self.name} is dead and cannot sleep.")
             return {}
 
-        changes = config.CARE_ACTIONS['sleep'].copy()
-
-        self.hunger = max(config.STAT_MIN, min(config.STAT_MAX, self.hunger + changes['hunger']))
-        self.happiness = max(config.STAT_MIN, min(config.STAT_MAX, self.happiness + changes['happiness']))
-        self.health = max(config.STAT_MIN, min(config.STAT_MAX, self.health + changes['health']))
-        self.energy = max(config.STAT_MIN, min(config.STAT_MAX, self.energy + changes['energy']))
-        self.last_sleep_time = time.time()  # Update last sleep time
+        changes = self._apply_care_action('sleep')
+        self.last_sleep_time = time.time()
 
         # Set sleeping state for temporary display
         self.is_sleeping = True

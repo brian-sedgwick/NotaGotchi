@@ -8,6 +8,10 @@ import time
 from typing import Optional, List, Dict, Any
 from PIL import Image, ImageDraw, ImageFont
 from . import config
+from .logging_config import get_logger
+
+# Module logger
+logger = get_logger(__name__)
 
 # Import Waveshare e-Paper library
 try:
@@ -20,8 +24,8 @@ try:
     from waveshare_epd import epd2in13_V4
     DISPLAY_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: Could not import Waveshare library: {e}")
-    print("Display will run in simulation mode")
+    logger.warning(f"Could not import Waveshare library: {e}")
+    logger.info("Display will run in simulation mode")
     DISPLAY_AVAILABLE = False
 
 
@@ -41,13 +45,22 @@ class DisplayManager:
         self.height = config.DISPLAY_HEIGHT
         self.last_full_refresh_time = 0  # Track last full refresh timestamp
 
-        # Try to load default fonts
+        # Try to load default fonts using config sizes
         try:
-            self.font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10)
-            self.font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
-            self.font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
-        except:
-            print("Using default font (TrueType fonts not available)")
+            self.font_small = ImageFont.truetype(
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                config.FONT_SIZE_SMALL
+            )
+            self.font_medium = ImageFont.truetype(
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                config.FONT_SIZE_MEDIUM
+            )
+            self.font_large = ImageFont.truetype(
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                config.FONT_SIZE_LARGE
+            )
+        except Exception:
+            logger.debug("TrueType fonts not available, using default font")
             self.font_small = ImageFont.load_default()
             self.font_medium = ImageFont.load_default()
             self.font_large = ImageFont.load_default()
@@ -63,15 +76,15 @@ class DisplayManager:
         self.font_emoji = None
         for font_path in emoji_font_paths:
             try:
-                self.font_emoji = ImageFont.truetype(font_path, 28)
-                print(f"Loaded emoji font from: {font_path}")
+                self.font_emoji = ImageFont.truetype(font_path, config.FONT_SIZE_EMOJI)
+                logger.debug(f"Loaded emoji font from: {font_path}")
                 break
-            except:
+            except Exception:
                 continue
 
         if self.font_emoji is None:
-            print("Warning: Emoji font (Symbola) not found, emojis may display as boxes")
-            print("Run ./install_emoji_font.sh to install the emoji font")
+            logger.warning("Emoji font (Symbola) not found, emojis may display as boxes")
+            logger.info("Run ./install_emoji_font.sh to install the emoji font")
             self.font_emoji = self.font_small  # Fallback to regular font
 
         # Load stat bar icon bitmaps (supports both PNG and BMP)
@@ -99,7 +112,7 @@ class DisplayManager:
             if icon is not None:
                 return icon
 
-        print(f"Warning: Could not find icon '{icon_name}' in PNG or BMP format")
+        logger.debug(f"Could not find icon '{icon_name}' in PNG or BMP format")
         return None
 
     def _load_icon(self, icon_path: str) -> Optional[Image.Image]:
@@ -122,7 +135,7 @@ class DisplayManager:
             if icon.mode != '1':
                 icon = icon.convert('1')
 
-            print(f"Loaded icon: {os.path.basename(icon_path)}")
+            logger.debug(f"Loaded icon: {os.path.basename(icon_path)}")
             return icon
         except Exception:
             # Silently fail - we try multiple extensions
@@ -131,14 +144,14 @@ class DisplayManager:
     def _initialize_display(self):
         """Initialize the e-Paper display hardware"""
         try:
-            print("Initializing e-Paper display...")
+            logger.info("Initializing e-Paper display...")
             self.epd = epd2in13_V4.EPD()
             self.epd.init()
             self.epd.Clear()
-            print("Display initialized successfully")
+            logger.info("Display initialized successfully")
         except Exception as e:
-            print(f"Error initializing display: {e}")
-            print("Falling back to simulation mode")
+            logger.error(f"Error initializing display: {e}")
+            logger.info("Falling back to simulation mode")
             self.simulation_mode = True
             self.epd = None
 
@@ -185,23 +198,30 @@ class DisplayManager:
 
     def _draw_list_item(self, draw: ImageDraw.Draw, x: int, y: int,
                         text: str, selected: bool, item_height: int,
-                        font=None) -> None:
+                        font=None, right_margin: int = None) -> None:
         """
         Draw a list item with optional selection highlight.
 
+        This is the standard method for drawing selectable list items.
+        Use this consistently throughout the codebase to avoid duplication.
+
         Args:
             draw: ImageDraw object
-            x: X position
-            y: Y position
+            x: X position for text
+            y: Y position for text
             text: Text to display
             selected: Whether this item is selected (highlighted)
             item_height: Height of the item for highlight rectangle
             font: Font to use (defaults to font_small)
+            right_margin: Right margin from screen edge (defaults to config value)
         """
         font = font or self.font_small
+        right_margin = right_margin if right_margin is not None else config.LIST_RIGHT_MARGIN
+
         if selected:
             draw.rectangle(
-                [(x - 2, y - 1), (self.width - 5, y + item_height - 3)],
+                [(x - config.LIST_HIGHLIGHT_X_OFFSET, y - config.LIST_HIGHLIGHT_Y_OFFSET),
+                 (self.width - right_margin, y + item_height - config.LIST_HIGHLIGHT_BOTTOM_OFFSET)],
                 fill=0
             )
             draw.text((x, y), text, fill=1, font=font)
@@ -465,9 +485,9 @@ class DisplayManager:
             image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
 
         # Draw friends list on right side
-        x = config.STATUS_AREA_X + 5
-        y = config.STATUS_AREA_Y + 2
-        item_height = 18
+        x = config.STATUS_AREA_X + config.UI_PADDING_MEDIUM
+        y = config.STATUS_AREA_Y + config.UI_PADDING_SMALL
+        item_height = config.LIST_ITEM_HEIGHT_LARGE
 
         # Build items list: friends + "Find Friends" option
         items = []
@@ -481,22 +501,15 @@ class DisplayManager:
         items.append("< Back")
 
         # Draw visible items
-        visible_items = 5  # Number of items that fit
+        visible_items = config.VISIBLE_ITEMS_FRIENDS
         start_idx = max(0, selected_index - visible_items + 1)
         end_idx = min(len(items), start_idx + visible_items)
 
         for i in range(start_idx, end_idx):
             item_text = items[i]
             y_pos = y + (i - start_idx) * item_height
-
-            if i == selected_index:
-                # Highlight selected item
-                draw.rectangle([(x - 2, y_pos - 1),
-                              (self.width - 5, y_pos + item_height - 3)],
-                              fill=0)
-                draw.text((x, y_pos), item_text, fill=1, font=self.font_small)
-            else:
-                draw.text((x, y_pos), item_text, fill=0, font=self.font_small)
+            self._draw_list_item(draw, x, y_pos, item_text,
+                                i == selected_index, item_height)
 
         return image
 
@@ -527,9 +540,9 @@ class DisplayManager:
             image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
 
         # Draw devices list on right side
-        x = config.STATUS_AREA_X + 5
-        y = config.STATUS_AREA_Y + 2
-        item_height = 18
+        x = config.STATUS_AREA_X + config.UI_PADDING_MEDIUM
+        y = config.STATUS_AREA_Y + config.UI_PADDING_SMALL
+        item_height = config.LIST_ITEM_HEIGHT_LARGE
 
         # Build items list: devices + Back option
         items = []
@@ -549,13 +562,8 @@ class DisplayManager:
             draw.text((x, y + 20), "No devices found", fill=0, font=self.font_small)
             # Still show Back option
             y_pos = y + 50
-            if selected_index == 0:  # Back is selected
-                draw.rectangle([(x - 2, y_pos - 1),
-                              (self.width - 5, y_pos + item_height - 3)],
-                              fill=0)
-                draw.text((x, y_pos), "< Back", fill=1, font=self.font_small)
-            else:
-                draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
+            self._draw_list_item(draw, x, y_pos, "< Back",
+                                selected_index == 0, item_height)
         else:
             # Draw item list (devices + Back)
             visible_items = 5
@@ -565,14 +573,8 @@ class DisplayManager:
             for i in range(start_idx, end_idx):
                 item_text = items[i]
                 y_pos = y + (i - start_idx) * item_height
-
-                if i == selected_index:
-                    draw.rectangle([(x - 2, y_pos - 1),
-                                  (self.width - 5, y_pos + item_height - 3)],
-                                  fill=0)
-                    draw.text((x, y_pos), item_text, fill=1, font=self.font_small)
-                else:
-                    draw.text((x, y_pos), item_text, fill=0, font=self.font_small)
+                self._draw_list_item(draw, x, y_pos, item_text,
+                                    i == selected_index, item_height)
 
             # Hint at bottom (only if not on Back)
             if selected_index < len(devices):
@@ -607,9 +609,9 @@ class DisplayManager:
             image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
 
         # Draw requests list on right side
-        x = config.STATUS_AREA_X + 5
-        y = config.STATUS_AREA_Y + 2
-        item_height = 18
+        x = config.STATUS_AREA_X + config.UI_PADDING_MEDIUM
+        y = config.STATUS_AREA_Y + config.UI_PADDING_SMALL
+        item_height = config.LIST_ITEM_HEIGHT_LARGE
 
         # Build items list: requests + Back option
         items = []
@@ -622,34 +624,23 @@ class DisplayManager:
             draw.text((x, y), "No requests", fill=0, font=self.font_small)
             # Still show Back option
             y_pos = y + 30
-            if selected_index == 0:  # Back is selected
-                draw.rectangle([(x - 2, y_pos - 1),
-                              (self.width - 5, y_pos + item_height - 3)],
-                              fill=0)
-                draw.text((x, y_pos), "< Back", fill=1, font=self.font_small)
-            else:
-                draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
+            self._draw_list_item(draw, x, y_pos, "< Back",
+                                selected_index == 0, item_height)
         else:
             # Draw count
             draw.text((x, y), f"Pending: {len(requests)}", fill=0, font=self.font_small)
             y += 15
 
             # Draw item list (requests + Back)
-            visible_items = 4
+            visible_items = config.VISIBLE_ITEMS_REQUESTS
             start_idx = max(0, selected_index - visible_items + 1)
             end_idx = min(len(items), start_idx + visible_items)
 
             for i in range(start_idx, end_idx):
                 item_text = items[i]
                 y_pos = y + (i - start_idx) * item_height
-
-                if i == selected_index:
-                    draw.rectangle([(x - 2, y_pos - 1),
-                                  (self.width - 5, y_pos + item_height - 3)],
-                                  fill=0)
-                    draw.text((x, y_pos), item_text, fill=1, font=self.font_small)
-                else:
-                    draw.text((x, y_pos), item_text, fill=0, font=self.font_small)
+                self._draw_list_item(draw, x, y_pos, item_text,
+                                    i == selected_index, item_height)
 
             # Hint at bottom (only if not on Back)
             if selected_index < len(requests):
@@ -685,8 +676,8 @@ class DisplayManager:
             image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
 
         # Draw messages list on right side
-        x = config.STATUS_AREA_X + 5
-        y = config.STATUS_AREA_Y + 2
+        x = config.STATUS_AREA_X + config.UI_PADDING_MEDIUM
+        y = config.STATUS_AREA_Y + config.UI_PADDING_SMALL
 
         # Define font for inbox items - change here to adjust size
         inbox_font = self.font_medium
@@ -697,8 +688,8 @@ class DisplayManager:
         # Build items list: messages + Back option
         items = []
         for msg in messages:
-            sender = msg.get('from_pet_name', 'Unknown')[:6]  # Truncate long names
-            content = msg.get('content', '')[:10]  # Short preview
+            sender = msg.get('from_pet_name', 'Unknown')[:config.SENDER_NAME_MAX_LENGTH]
+            content = msg.get('content', '')[:config.MESSAGE_PREVIEW_LENGTH]
             is_read = msg.get('is_read', False)
             # Format time ago
             time_str = self._format_time_ago(msg.get('received_at', 0))
@@ -716,12 +707,8 @@ class DisplayManager:
             draw.text((x, y), "No messages", fill=0, font=inbox_font)
             # Still show Back option
             y_pos = y + item_height * 2
-            if selected_index == 0:  # Back is selected
-                draw.rectangle([(x - 2, y_pos - 1),
-                              (self.width - 5, y_pos + item_height - 2)], fill=0)
-                draw.text((x, y_pos), "< Back", fill=1, font=inbox_font)
-            else:
-                draw.text((x, y_pos), "< Back", fill=0, font=inbox_font)
+            self._draw_list_item(draw, x, y_pos, "< Back",
+                                selected_index == 0, item_height, inbox_font)
         else:
             # Draw message list - calculate visible items from available space
             available_height = config.STATUS_AREA_HEIGHT - 10
@@ -733,24 +720,12 @@ class DisplayManager:
 
             for i in range(start_idx, end_idx):
                 y_pos = y + (i - start_idx) * item_height
-
                 if i < len(items):
-                    # Message item (single line)
-                    line = items[i]
-                    if i == selected_index:
-                        draw.rectangle([(x - 2, y_pos - 1),
-                                      (self.width - 5, y_pos + item_height - 2)], fill=0)
-                        draw.text((x, y_pos), line, fill=1, font=inbox_font)
-                    else:
-                        draw.text((x, y_pos), line, fill=0, font=inbox_font)
+                    text = items[i]
                 else:
-                    # Back option
-                    if i == selected_index:
-                        draw.rectangle([(x - 2, y_pos - 1),
-                                      (self.width - 5, y_pos + item_height - 2)], fill=0)
-                        draw.text((x, y_pos), "< Back", fill=1, font=inbox_font)
-                    else:
-                        draw.text((x, y_pos), "< Back", fill=0, font=inbox_font)
+                    text = "< Back"
+                self._draw_list_item(draw, x, y_pos, text,
+                                    i == selected_index, item_height, inbox_font)
 
         return image
 
@@ -868,27 +843,22 @@ class DisplayManager:
             image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
 
         # Draw category list on right side
-        x = config.STATUS_AREA_X + 5
-        y = config.STATUS_AREA_Y + 2
-        item_height = 16
+        x = config.STATUS_AREA_X + config.UI_PADDING_MEDIUM
+        y = config.STATUS_AREA_Y + config.UI_PADDING_SMALL
+        item_height = config.LIST_ITEM_HEIGHT_MEDIUM
 
         # Add Back option to categories
         items = [(None, "< Back")] + list(categories)
 
-        visible_items = 6
+        visible_items = config.VISIBLE_ITEMS_EMOJI_CATEGORY
         start_idx = max(0, selected_index - visible_items + 1)
         end_idx = min(len(items), start_idx + visible_items)
 
         for i in range(start_idx, end_idx):
             _, display_name = items[i]
             y_pos = y + (i - start_idx) * item_height
-
-            if i == selected_index:
-                draw.rectangle([(x - 2, y_pos - 1),
-                              (self.width - 5, y_pos + item_height - 2)], fill=0)
-                draw.text((x, y_pos), display_name, fill=1, font=self.font_small)
-            else:
-                draw.text((x, y_pos), display_name, fill=0, font=self.font_small)
+            self._draw_list_item(draw, x, y_pos, display_name,
+                                i == selected_index, item_height)
 
         # To: friend name
         draw.text((x, self.height - 15), f"To: {friend_name}", fill=0, font=self.font_small)
@@ -972,27 +942,22 @@ class DisplayManager:
             image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
 
         # Draw category list on right side
-        x = config.STATUS_AREA_X + 5
-        y = config.STATUS_AREA_Y + 2
-        item_height = 14
+        x = config.STATUS_AREA_X + config.UI_PADDING_MEDIUM
+        y = config.STATUS_AREA_Y + config.UI_PADDING_SMALL
+        item_height = config.LIST_ITEM_HEIGHT_SMALL
 
         # Add Back option to categories
         items = [(None, "< Back")] + list(categories)
 
-        visible_items = 7
+        visible_items = config.VISIBLE_ITEMS_PRESET_CATEGORY
         start_idx = max(0, selected_index - visible_items + 1)
         end_idx = min(len(items), start_idx + visible_items)
 
         for i in range(start_idx, end_idx):
             _, display_name = items[i]
             y_pos = y + (i - start_idx) * item_height
-
-            if i == selected_index:
-                draw.rectangle([(x - 2, y_pos - 1),
-                              (self.width - 5, y_pos + item_height - 2)], fill=0)
-                draw.text((x, y_pos), display_name, fill=1, font=self.font_small)
-            else:
-                draw.text((x, y_pos), display_name, fill=0, font=self.font_small)
+            self._draw_list_item(draw, x, y_pos, display_name,
+                                i == selected_index, item_height)
 
         # To: friend name
         draw.text((x, self.height - 15), f"To: {friend_name}", fill=0, font=self.font_small)
@@ -1027,29 +992,23 @@ class DisplayManager:
             image.paste(pet_sprite, (config.PET_SPRITE_X, config.PET_SPRITE_Y))
 
         # Draw preset list on right side
-        x = config.STATUS_AREA_X + 5
-        y = config.STATUS_AREA_Y + 2
-        item_height = 16
+        x = config.STATUS_AREA_X + config.UI_PADDING_MEDIUM
+        y = config.STATUS_AREA_Y + config.UI_PADDING_SMALL
+        item_height = config.LIST_ITEM_HEIGHT_MEDIUM
 
         # Draw preset list
-        visible_items = 5
+        visible_items = config.VISIBLE_ITEMS_PRESETS
         start_idx = max(0, selected_index - visible_items + 1)
         end_idx = min(len(presets), start_idx + visible_items)
 
         for i in range(start_idx, end_idx):
             preset = presets[i]
             # Truncate if too long
-            if len(preset) > 14:
-                preset = preset[:12] + ".."
+            if len(preset) > config.PRESET_MAX_DISPLAY_LENGTH:
+                preset = preset[:config.PRESET_MAX_DISPLAY_LENGTH - 2] + ".."
             y_pos = y + (i - start_idx) * item_height
-
-            if i == selected_index:
-                draw.rectangle([(x - 2, y_pos - 1),
-                              (self.width - 5, y_pos + item_height - 2)],
-                              fill=0)
-                draw.text((x, y_pos), preset, fill=1, font=self.font_small)
-            else:
-                draw.text((x, y_pos), preset, fill=0, font=self.font_small)
+            self._draw_list_item(draw, x, y_pos, preset,
+                                i == selected_index, item_height)
 
         # To: friend name
         draw.text((x, self.height - 28), f"To: {friend_name}", fill=0, font=self.font_small)
@@ -1160,21 +1119,21 @@ class DisplayManager:
         """
         try:
             from ina219 import INA219
-            print("[Battery] INA219 library imported successfully")
+            logger.debug("INA219 library imported successfully")
 
             # INA219 configuration (matches your test code)
             SHUNT_OHMS = 0.1
-            print(f"[Battery] Connecting to INA219 (bus=1, address=0x43, shunt={SHUNT_OHMS} ohms)")
+            logger.debug(f"Connecting to INA219 (bus=1, address=0x43, shunt={SHUNT_OHMS} ohms)")
             ina = INA219(SHUNT_OHMS, busnum=1, address=0x43)
             ina.configure()
-            print("[Battery] INA219 configured successfully")
+            logger.debug("INA219 configured successfully")
 
             # Calculate percentage based on voltage (3V to 4.2V range for LiPo)
             voltage = ina.voltage()
-            print(f"[Battery] Voltage read: {voltage:.3f}V")
+            logger.debug(f"Battery voltage read: {voltage:.3f}V")
 
             percent = (voltage - 3.0) / 1.2 * 100
-            print(f"[Battery] Calculated percentage (raw): {percent:.1f}%")
+            logger.debug(f"Battery percentage (raw): {percent:.1f}%")
 
             # Clamp to 0-100 range
             if percent > 100:
@@ -1182,16 +1141,16 @@ class DisplayManager:
             if percent < 0:
                 percent = 0
 
-            print(f"[Battery] Final percentage: {int(percent)}%")
+            logger.debug(f"Battery final percentage: {int(percent)}%")
             return int(percent)
 
         except ImportError as e:
             # ina219 library not installed
-            print(f"[Battery] ImportError - INA219 library not available: {e}")
+            logger.debug(f"INA219 library not available: {e}")
             return None
         except Exception as e:
             # INA219 not connected or I2C error
-            print(f"[Battery] Error reading from INA219: {type(e).__name__}: {e}")
+            logger.debug(f"Error reading from INA219: {type(e).__name__}: {e}")
             return None
 
     def _draw_battery_icon(self, draw: ImageDraw.Draw, x: int, y: int):
@@ -1345,7 +1304,7 @@ class DisplayManager:
         """
         if self.simulation_mode:
             # In simulation mode, just save the image
-            print("Simulation mode: Would display image")
+            logger.debug("Simulation mode: Would display image")
             return
 
         try:
@@ -1360,21 +1319,21 @@ class DisplayManager:
 
                 if time_since_last_full >= config.FULL_REFRESH_MIN_INTERVAL:
                     # Do full refresh
-                    print("Performing full refresh...")
+                    logger.debug("Performing full refresh")
                     self.epd.init()
                     self.epd.display(buffer)
                     self.last_full_refresh_time = current_time
                 else:
                     # Not enough time has passed, do partial instead
                     time_remaining = config.FULL_REFRESH_MIN_INTERVAL - time_since_last_full
-                    print(f"Full refresh requested but only {time_since_last_full:.1f}s elapsed (need {config.FULL_REFRESH_MIN_INTERVAL}s, {time_remaining:.1f}s remaining), doing partial refresh...")
+                    logger.debug(f"Full refresh requested but {time_since_last_full:.1f}s elapsed, doing partial refresh")
                     self.epd.displayPartial(buffer)
             else:
                 # Normal partial refresh (no logging to reduce console noise)
                 self.epd.displayPartial(buffer)
 
         except Exception as e:
-            print(f"Error updating display: {e}")
+            logger.error(f"Error updating display: {e}")
 
     def clear_display(self):
         """Clear the display to white"""
@@ -1384,22 +1343,22 @@ class DisplayManager:
                 self.epd.Clear()
                 self.last_full_refresh_time = time.time()  # Reset timestamp after full clear
             except Exception as e:
-                print(f"Error clearing display: {e}")
+                logger.error(f"Error clearing display: {e}")
 
     def sleep(self):
         """Put display into sleep mode"""
         if not self.simulation_mode and self.epd:
             try:
                 self.epd.sleep()
-                print("Display entering sleep mode")
+                logger.info("Display entering sleep mode")
             except Exception as e:
-                print(f"Error putting display to sleep: {e}")
+                logger.error(f"Error putting display to sleep: {e}")
 
     def close(self):
         """Clean up display resources"""
         if not self.simulation_mode and self.epd:
             try:
                 self.epd.sleep()
-                print("Display closed")
+                logger.info("Display closed")
             except Exception as e:
-                print(f"Error closing display: {e}")
+                logger.error(f"Error closing display: {e}")

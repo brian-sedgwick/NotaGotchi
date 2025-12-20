@@ -21,6 +21,11 @@ from typing import Optional, Callable, Dict, Any, List
 from . import config
 from .wifi_manager import WiFiManager
 from .friend_manager import FriendManager
+from .message_handlers import (
+    MessageHandlerRegistry,
+    MessageHandlerContext,
+    create_default_registry
+)
 
 
 class SocialCoordinator:
@@ -31,7 +36,8 @@ class SocialCoordinator:
     """
 
     def __init__(self, wifi_manager: WiFiManager, friend_manager: FriendManager,
-                 own_pet_name: str, message_manager=None):
+                 own_pet_name: str, message_manager=None,
+                 message_registry: MessageHandlerRegistry = None):
         """
         Initialize Social Coordinator
 
@@ -40,11 +46,15 @@ class SocialCoordinator:
             friend_manager: FriendManager instance
             own_pet_name: This pet's name
             message_manager: MessageManager instance (optional)
+            message_registry: MessageHandlerRegistry for routing messages (optional)
         """
         self.wifi = wifi_manager
         self.friends = friend_manager
         self.own_pet_name = own_pet_name
         self.messages = message_manager  # Optional MessageManager
+
+        # Message handler registry (uses Strategy pattern)
+        self._message_registry = message_registry or create_default_registry()
 
         # Callbacks for UI notifications
         self.on_friend_request_received: Optional[Callable] = None
@@ -54,6 +64,23 @@ class SocialCoordinator:
 
         # Register WiFi callback
         self.wifi.register_callback(self._handle_incoming_message)
+
+    @property
+    def message_registry(self) -> MessageHandlerRegistry:
+        """Get the message handler registry for registering custom handlers."""
+        return self._message_registry
+
+    def register_message_handler(self, handler) -> None:
+        """
+        Register a custom message handler.
+
+        This enables extensibility - new message types can be handled
+        by registering a handler without modifying SocialCoordinator.
+
+        Args:
+            handler: A MessageHandler instance
+        """
+        self._message_registry.register(handler)
 
     # ========================================================================
     # FRIEND REQUEST PROTOCOL
@@ -240,145 +267,37 @@ class SocialCoordinator:
     # MESSAGE HANDLING (Callback from WiFi Manager)
     # ========================================================================
 
+    def _create_handler_context(self) -> MessageHandlerContext:
+        """
+        Create a MessageHandlerContext for passing to handlers.
+
+        Returns:
+            Configured MessageHandlerContext
+        """
+        return MessageHandlerContext(
+            friend_manager=self.friends,
+            message_manager=self.messages,
+            wifi_manager=self.wifi,
+            own_pet_name=self.own_pet_name,
+            on_friend_request_received=self.on_friend_request_received,
+            on_friend_request_accepted=self.on_friend_request_accepted,
+            on_friend_request_rejected=self.on_friend_request_rejected,
+            on_message_received=self.on_message_received
+        )
+
     def _handle_incoming_message(self, message_data: Dict, sender_ip: str):
         """
-        Handle incoming WiFi messages
+        Handle incoming WiFi messages using the Strategy pattern.
 
         This is registered as a callback with WiFi Manager.
-        Routes messages based on type.
+        Routes messages to the appropriate handler via the registry.
 
         Args:
             message_data: Parsed message dict
             sender_ip: IP address of sender
         """
-        message_type = message_data.get('type')
-
-        if message_type == 'friend_request':
-            self._handle_friend_request(message_data, sender_ip)
-
-        elif message_type == 'friend_request_accepted':
-            self._handle_friend_request_accepted(message_data, sender_ip)
-
-        elif message_type == 'message':
-            self._handle_chat_message(message_data, sender_ip)
-
-        else:
-            print(f"⚠️  Unknown message type: {message_type}")
-
-    def _handle_friend_request(self, message_data: Dict, sender_ip: str):
-        """Handle incoming friend request"""
-        from_device_name = message_data.get('from_device_name')
-        from_pet_name = message_data.get('from_pet_name')
-        from_ip = message_data.get('from_ip', sender_ip)  # Fallback to sender_ip
-        from_port = message_data.get('from_port', config.WIFI_PORT)
-
-        print(f"\n{'='*60}")
-        print(f"📬 Friend request received!")
-        print(f"   From: {from_pet_name} ({from_device_name})")
-        print(f"   Address: {from_ip}:{from_port}")
-        print(f"{'='*60}\n")
-
-        # Store in database
-        success = self.friends.receive_friend_request(
-            from_device_name,
-            from_pet_name,
-            from_ip,
-            from_port
-        )
-
-        if success:
-            # Notify UI
-            if self.on_friend_request_received:
-                self.on_friend_request_received({
-                    'device_name': from_device_name,
-                    'pet_name': from_pet_name,
-                    'ip': from_ip,
-                    'port': from_port
-                })
-
-    def _handle_friend_request_accepted(self, message_data: Dict, sender_ip: str):
-        """
-        Handle friend request acceptance
-
-        When we receive this, it means someone accepted our friend request.
-        We need to add them to our friends list.
-        """
-        from_device_name = message_data.get('from_device_name')
-        from_pet_name = message_data.get('from_pet_name')
-        from_port = message_data.get('from_port', config.WIFI_PORT)
-
-        print(f"\n{'='*60}")
-        print(f"✅ Friend request accepted!")
-        print(f"   {from_pet_name} ({from_device_name}) accepted your request")
-        print(f"{'='*60}\n")
-
-        # Get sender IP (may have changed)
-        from_ip = sender_ip
-
-        # Add to friends (if not already)
-        if not self.friends.is_friend(from_device_name):
-            cursor = self.friends.connection.cursor()
-            current_time = time.time()
-
-            cursor.execute('''
-                INSERT INTO friends
-                (device_name, pet_name, last_ip, last_port, last_seen, friendship_established)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (from_device_name, from_pet_name, from_ip, from_port,
-                  current_time, current_time))
-
-            self.friends.connection.commit()
-            print(f"✅ {from_pet_name} added to friends!")
-
-            # Notify UI
-            if self.on_friend_request_accepted:
-                self.on_friend_request_accepted({
-                    'device_name': from_device_name,
-                    'pet_name': from_pet_name,
-                    'ip': from_ip,
-                    'port': from_port
-                })
-        else:
-            # Update contact info
-            self.friends.update_friend_contact(from_device_name, from_ip, from_port)
-
-    def _handle_chat_message(self, message_data: Dict, sender_ip: str):
-        """
-        Handle incoming chat message
-        """
-        from_device_name = message_data.get('from_device_name')
-        from_pet_name = message_data.get('from_pet_name', 'Unknown')
-        message_id = message_data.get('message_id')
-        content = message_data.get('content', '')
-        content_type = message_data.get('content_type', 'text')
-        timestamp = message_data.get('timestamp', time.time())
-
-        # Verify sender is a friend
-        if not self.friends.is_friend(from_device_name):
-            print(f"⚠️  Received message from non-friend: {from_device_name}")
-            return
-
-        # Update friend's contact info
-        from_port = message_data.get('from_port', config.WIFI_PORT)
-        self.friends.update_friend_contact(from_device_name, sender_ip, from_port)
-
-        # Store message if MessageManager available
-        if self.messages:
-            self.messages.receive_message(
-                from_device_name,
-                from_pet_name,
-                message_id,
-                content,
-                content_type,
-                timestamp
-            )
-        else:
-            # Fallback: just print
-            print(f"📬 Message from {from_pet_name}: {content}")
-
-        # Notify UI
-        if self.on_message_received:
-            self.on_message_received(message_data, sender_ip)
+        context = self._create_handler_context()
+        self._message_registry.handle_message(message_data, sender_ip, context)
 
     # ========================================================================
     # MESSAGING (if MessageManager available)

@@ -10,11 +10,18 @@ import os
 import time
 import signal
 import json
+import logging
 
 # Add modules directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from modules import config
+from modules.logging_config import setup_logging, get_logger
+from modules.metrics import Timer, get_metrics, record_frame_time
+
+# Initialize logging before anything else
+setup_logging(level=logging.INFO)
+logger = get_logger("main")
 from modules.persistence import DatabaseManager
 from modules.pet import Pet
 from modules.sprite_manager import SpriteManager
@@ -26,33 +33,62 @@ from modules.wifi_manager import WiFiManager
 from modules.friend_manager import FriendManager
 from modules.messaging import MessageManager
 from modules.social_coordinator import SocialCoordinator
+from modules.action_handler import ActionHandler
 
 
 class NotAGotchiApp:
     """Main application class"""
 
-    def __init__(self, simulation_mode: bool = False):
+    def __init__(self, simulation_mode: bool = False,
+                 db: DatabaseManager = None,
+                 sprite_manager: SpriteManager = None,
+                 display: DisplayManager = None,
+                 input_handler: InputHandler = None,
+                 screen_manager: ScreenManager = None,
+                 quote_manager: QuoteManager = None,
+                 wifi_manager: WiFiManager = None,
+                 friend_manager: FriendManager = None,
+                 message_manager: MessageManager = None,
+                 social_coordinator: SocialCoordinator = None,
+                 skip_social_init: bool = False):
         """
         Initialize the application
 
         Args:
             simulation_mode: Run without actual hardware (for testing)
+            db: DatabaseManager instance (injected for testing)
+            sprite_manager: SpriteManager instance (injected for testing)
+            display: DisplayManager instance (injected for testing)
+            input_handler: InputHandler instance (injected for testing)
+            screen_manager: ScreenManager instance (injected for testing)
+            quote_manager: QuoteManager instance (injected for testing)
+            wifi_manager: WiFiManager instance (injected for testing)
+            friend_manager: FriendManager instance (injected for testing)
+            message_manager: MessageManager instance (injected for testing)
+            social_coordinator: SocialCoordinator instance (injected for testing)
+            skip_social_init: Skip social features initialization (for testing)
         """
         self.simulation_mode = simulation_mode
         self.running = False
+        self._skip_social_init = skip_social_init
 
-        # Initialize components
-        print(f"Starting {config.PROJECT_NAME} v{config.VERSION}")
-        print("=" * 50)
+        # Initialize components (use injected dependencies or create defaults)
+        logger.info(f"Starting {config.PROJECT_NAME} v{config.VERSION}")
+        logger.info("=" * 50)
 
-        self.db = DatabaseManager()
-        self.sprite_manager = SpriteManager()
-        self.display = DisplayManager(simulation_mode=simulation_mode)
-        self.input_handler = InputHandler(simulation_mode=simulation_mode)
-        self.screen_manager = ScreenManager()
-        self.quote_manager = QuoteManager(config.QUOTES_FILE)
+        self.db = db or DatabaseManager()
+        self.sprite_manager = sprite_manager or SpriteManager()
+        self.display = display or DisplayManager(simulation_mode=simulation_mode)
+        self.input_handler = input_handler or InputHandler(simulation_mode=simulation_mode)
+        self.screen_manager = screen_manager or ScreenManager()
+        self.quote_manager = quote_manager or QuoteManager(config.QUOTES_FILE)
 
         # Social features (WiFi + Friends + Messaging)
+        # Store injected dependencies (may be None, will be initialized later if needed)
+        self._injected_wifi_manager = wifi_manager
+        self._injected_friend_manager = friend_manager
+        self._injected_message_manager = message_manager
+        self._injected_social_coordinator = social_coordinator
         self.wifi_manager = None
         self.friend_manager = None
         self.message_manager = None
@@ -85,11 +121,24 @@ class NotAGotchiApp:
         # Initialize social features (WiFi requires pet to be loaded)
         self._initialize_social_features()
 
-        print("=" * 50)
-        print("Initialization complete!\n")
+        # Create ActionHandler with all dependencies
+        self._create_action_handler()
+
+        logger.info("=" * 50)
+        logger.info("Initialization complete!")
 
     def _initialize_social_features(self):
         """Initialize WiFi, friends, and messaging"""
+        # Check if social features should be skipped (for testing)
+        if self._skip_social_init:
+            # Use injected dependencies if provided
+            self.wifi_manager = self._injected_wifi_manager
+            self.friend_manager = self._injected_friend_manager
+            self.message_manager = self._injected_message_manager
+            self.social_coordinator = self._injected_social_coordinator
+            print("Social features skipped (testing mode)")
+            return
+
         try:
             # Get device name (will use pet name once available)
             if self.pet:
@@ -102,18 +151,20 @@ class NotAGotchiApp:
             print("\nInitializing social features...")
             print(f"Device name: {device_name}")
 
-            # Initialize managers with shared database lock for thread safety
+            # Use injected dependencies or create new instances
             db_lock = self.db.get_lock()
-            self.wifi_manager = WiFiManager(device_name)
-            self.friend_manager = FriendManager(self.db.connection, device_name, db_lock)
-            self.message_manager = MessageManager(
+            self.wifi_manager = self._injected_wifi_manager or WiFiManager(device_name)
+            self.friend_manager = self._injected_friend_manager or FriendManager(
+                self.db.connection, device_name, db_lock
+            )
+            self.message_manager = self._injected_message_manager or MessageManager(
                 self.db.connection,
                 self.wifi_manager,
                 self.friend_manager,
                 device_name,
                 db_lock
             )
-            self.social_coordinator = SocialCoordinator(
+            self.social_coordinator = self._injected_social_coordinator or SocialCoordinator(
                 self.wifi_manager,
                 self.friend_manager,
                 pet_name,
@@ -177,7 +228,10 @@ class NotAGotchiApp:
 
     def _register_actions(self):
         """Register callbacks for menu actions"""
-        # Care actions
+        # Note: Actions are registered here but delegated to self.action_handler
+        # after _create_action_handler() is called in __init__
+
+        # Care actions - will be delegated to ActionHandler
         self.screen_manager.register_action('feed', self._action_feed)
         self.screen_manager.register_action('play', self._action_play)
         self.screen_manager.register_action('clean', self._action_clean)
@@ -189,6 +243,22 @@ class NotAGotchiApp:
         self.screen_manager.register_action('view_message', self._action_view_message)
         self.screen_manager.register_action('friends', self._action_friends)
         self.screen_manager.register_action('requests', self._action_requests)
+
+    def _create_action_handler(self):
+        """Create the ActionHandler with all dependencies."""
+        self.action_handler = ActionHandler(
+            get_pet=lambda: self.pet,
+            get_db=lambda: self.db,
+            get_screen_manager=lambda: self.screen_manager,
+            get_social_coordinator=lambda: self.social_coordinator,
+            get_message_manager=lambda: self.message_manager,
+            save_pet=self._save_pet,
+            set_action_occurred=lambda v: setattr(self, 'action_occurred', v),
+            create_new_pet=self._create_new_pet,
+            get_wifi_manager=lambda: self.wifi_manager,
+            get_display=lambda: self.display
+        )
+        logger.debug("ActionHandler created")
 
     def _load_or_create_pet(self):
         """Load existing pet or create new one"""
@@ -232,114 +302,76 @@ class NotAGotchiApp:
             notes=f"Resumed after {hours_offline:.1f} hours offline (paused)"
         )
 
-    def _action_feed(self):
-        """Handle feed action"""
-        if self.pet is None:
-            return
+    def _create_new_pet(self, name: str):
+        """
+        Create a new pet with the given name.
 
-        changes = self.pet.feed()
-        self.db.log_event(self.pet.id, "feed", stat_changes=changes)
-        self._save_pet()
-        self.action_occurred = True  # Trigger full refresh
-        self.screen_manager.go_home()
-        print(f"Fed {self.pet.name}")
+        This is used as a callback by ActionHandler.
+
+        Args:
+            name: The pet's name
+        """
+        pet_id = self.db.create_pet(name)
+        if pet_id:
+            pet_data = self.db.get_active_pet()
+            self.pet = Pet.from_dict(pet_data)
+            logger.info(f"Created new pet: {name} (id={pet_id})")
+
+    # =========================================================================
+    # ACTION METHODS - Delegated to ActionHandler
+    # =========================================================================
+    # These thin wrapper methods delegate to the ActionHandler for actual logic.
+    # This keeps backward compatibility with screen_manager's action registration.
+
+    def _action_feed(self):
+        """Handle feed action - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_feed()
 
     def _action_play(self):
-        """Handle play action"""
-        if self.pet is None:
-            return
-
-        changes = self.pet.play()
-        self.db.log_event(self.pet.id, "play", stat_changes=changes)
-        self._save_pet()
-        self.action_occurred = True  # Trigger full refresh
-        self.screen_manager.go_home()
-        print(f"Played with {self.pet.name}")
+        """Handle play action - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_play()
 
     def _action_clean(self):
-        """Handle clean action"""
-        if self.pet is None:
-            return
-
-        changes = self.pet.clean()
-        self.db.log_event(self.pet.id, "clean", stat_changes=changes)
-        self._save_pet()
-        self.action_occurred = True  # Trigger full refresh
-        self.screen_manager.go_home()
-        print(f"Cleaned {self.pet.name}")
+        """Handle clean action - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_clean()
 
     def _action_sleep(self):
-        """Handle sleep action"""
-        if self.pet is None:
-            return
-
-        changes = self.pet.sleep()
-        self.db.log_event(self.pet.id, "sleep", stat_changes=changes)
-        self._save_pet()
-        self.action_occurred = True  # Trigger full refresh
-        self.screen_manager.go_home()
-        print(f"{self.pet.name} is sleeping")
+        """Handle sleep action - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_sleep()
 
     def _action_reset(self):
-        """Handle reset action - show confirmation first"""
-        if self.pet is None:
-            return
-
-        def confirm_reset():
-            print("Resetting pet...")
-            self.db.log_event(self.pet.id, "reset", notes="Pet was reset")
-            self.pet = None  # Clear pet so name entry creates fresh pet
-            self.action_occurred = True  # Trigger full refresh
-            # Start name entry for new pet
-            self.screen_manager.start_name_entry()
-
-        self.screen_manager.show_confirmation(
-            "Reset pet? All progress will be lost!",
-            confirm_reset
-        )
+        """Handle reset action - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_reset()
 
     def _action_care(self):
-        """Open care submenu"""
-        self.screen_manager.set_screen(config.ScreenState.CARE_MENU)
+        """Open care submenu - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_care()
 
     def _action_friends(self):
-        """Open friends list"""
-        # Update friends list from social coordinator
-        if self.social_coordinator:
-            friends = self.social_coordinator.get_friends()
-            self.screen_manager.set_friends_list(friends)
-        else:
-            self.screen_manager.set_friends_list([])
-        self.screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
+        """Open friends list - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_friends()
 
     def _action_requests(self):
-        """Open friend requests"""
-        # Update pending requests from social coordinator
-        if self.social_coordinator:
-            requests = self.social_coordinator.get_pending_requests()
-            self.screen_manager.set_pending_requests(requests)
-        else:
-            self.screen_manager.set_pending_requests([])
-        self.screen_manager.set_screen(config.ScreenState.FRIEND_REQUESTS)
+        """Open friend requests - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_requests()
 
     def _action_inbox(self):
-        """Open inbox"""
-        # Get recent messages from message manager
-        if self.message_manager:
-            messages = self.message_manager.get_inbox(limit=20)
-            self.screen_manager.set_inbox_messages(messages)
-        else:
-            self.screen_manager.set_inbox_messages([])
-        self.screen_manager.set_screen(config.ScreenState.INBOX)
+        """Open inbox - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_inbox()
 
     def _action_view_message(self):
-        """Handle viewing a message - marks it as read"""
-        message = self.screen_manager.selected_message
-        if message and self.message_manager:
-            msg_id = message.get('message_id')
-            if msg_id:
-                self.message_manager.mark_as_read(msg_id)
-                message['is_read'] = True  # Update cached object
+        """Handle viewing a message - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.action_view_message()
 
     def _save_pet(self):
         """Save pet state to database"""
@@ -420,139 +452,24 @@ class NotAGotchiApp:
                         self.screen_manager.trigger_action(action)
 
     def _complete_name_entry(self):
-        """Complete name entry and create/rename pet"""
-        name = self.screen_manager.get_entered_name()
-
-        # Validate the name
-        if name:
-            name = name.strip()
-            is_valid, error = config.validate_pet_name(name)
-            if not is_valid:
-                print(f"⚠️  Invalid pet name: {error}")
-                name = None
-
-        if not name:
-            name = config.DEFAULT_PET_NAME
-            print(f"Using default pet name: {name}")
-
-        if self.pet is None:
-            # Create new pet
-            pet_id = self.db.create_pet(name)
-            if pet_id:
-                pet_data = self.db.get_active_pet()
-                self.pet = Pet.from_dict(pet_data)
-                print(f"Created new pet: {name}")
-
-                # Update WiFi device name with new pet name
-                new_device_name = f"{name}_{config.DEVICE_ID_PREFIX}"
-                if self.wifi_manager:
-                    self.wifi_manager.update_device_name(new_device_name)
-                if self.social_coordinator:
-                    self.social_coordinator.own_pet_name = name
-        else:
-            # Rename existing pet
-            self.pet.name = name
-            self._save_pet()
-            print(f"Renamed pet to: {name}")
-
-        self.action_occurred = True  # Trigger full refresh
-        self.screen_manager.go_home()
+        """Complete name entry and create/rename pet - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.complete_name_entry()
 
     def _handle_send_message(self, data):
-        """Handle sending a message to a friend"""
-        if not self.social_coordinator:
-            print("Social features not available")
-            return
-
-        to_device = data.get('to_device')
-        content = data.get('content', '')
-        msg_type = data.get('type', 'custom')
-
-        print(f"Sending {msg_type} message to {data.get('to_name')}: {content}")
-
-        # Send via social coordinator
-        success = self.social_coordinator.send_message(to_device, content)
-
-        if success:
-            print("Message sent successfully")
-        else:
-            print("Failed to send message (queued for retry)")
-
-        self.action_occurred = True
-        self.screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
+        """Handle sending a message to a friend - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.handle_send_message(data)
 
     def _handle_send_friend_request(self, device):
-        """Handle sending a friend request"""
-        if not self.social_coordinator:
-            print("Social features not available")
-            return
-
-        device_name = device.get('name', 'Unknown')
-        # Extract pet name from device name (e.g., "Buddy_notagotchi" -> "Buddy")
-        suffix = f"_{config.DEVICE_ID_PREFIX}"
-        if device_name.endswith(suffix):
-            pet_name = device_name[:-len(suffix)]
-        else:
-            pet_name = device_name
-
-        print(f"Sending friend request to {pet_name}")
-
-        success = self.social_coordinator.send_friend_request(device)
-
-        if success:
-            print(f"Friend request sent to {pet_name}")
-            message = "Request Sent!"
-            submessage = f"to {pet_name}"
-        else:
-            print(f"Failed to send friend request to {pet_name}")
-            message = "Request Failed"
-            submessage = ""
-
-        # Show visual feedback
-        image = self.display.draw_status_message(message, submessage)
-        self.display.update_display(image)
-
-        # Brief pause for user to see message
-        time.sleep(1.5)
-
-        # Navigate back to friends list
-        self.action_occurred = True
-        self.screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
+        """Handle sending a friend request - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.handle_send_friend_request(device)
 
     def _handle_friend_request_action(self, request):
-        """Handle accepting/rejecting a friend request"""
-        if not self.social_coordinator:
-            print("Social features not available")
-            return
-
-        from_name = request.get('pet_name', 'Unknown')
-        device_name = request.get('device_name')
-
-        def accept_request():
-            print(f"Accepting friend request from {from_name}")
-            self.social_coordinator.accept_friend_request(device_name)
-            self.action_occurred = True
-            # Refresh the requests list
-            requests = self.social_coordinator.get_pending_requests()
-            self.screen_manager.set_pending_requests(requests)
-            if len(requests) == 0:
-                self.screen_manager.set_screen(config.ScreenState.MENU)
-
-        def reject_request():
-            print(f"Rejecting friend request from {from_name}")
-            self.social_coordinator.reject_friend_request(device_name)
-            self.action_occurred = True
-            # Refresh the requests list
-            requests = self.social_coordinator.get_pending_requests()
-            self.screen_manager.set_pending_requests(requests)
-            if len(requests) == 0:
-                self.screen_manager.set_screen(config.ScreenState.MENU)
-
-        self.screen_manager.show_confirmation(
-            f"Accept {from_name} as friend?",
-            accept_request,
-            reject_request
-        )
+        """Handle accepting/rejecting a friend request - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.handle_friend_request_action(request)
 
     def _render_display(self):
         """Render current screen to display"""
@@ -928,53 +845,68 @@ class NotAGotchiApp:
         """Main game loop"""
         self.running = True
 
-        print("Starting main game loop...")
-        print("Press Ctrl+C to exit\n")
+        logger.info("Starting main game loop...")
+        logger.info("Press Ctrl+C to exit")
 
         try:
             while self.running:
-                # Process WiFi callback queue (thread-safe message handling)
-                if self.wifi_manager:
-                    self.wifi_manager.process_callback_queue()
+                with Timer() as frame_timer:
+                    # Process WiFi callback queue (thread-safe message handling)
+                    if self.wifi_manager:
+                        self.wifi_manager.process_callback_queue()
 
-                # Handle input
-                self._handle_input()
+                    # Handle input
+                    self._handle_input()
 
-                # Update pet stats
-                self._update_pet_stats()
+                    # Update pet stats
+                    self._update_pet_stats()
 
-                # Auto-save
-                self._auto_save()
+                    # Auto-save
+                    self._auto_save()
 
-                # Render display
-                self._render_display()
+                    # Render display
+                    self._render_display()
 
-                # Small delay to prevent CPU spinning
-                time.sleep(config.INPUT_POLL_RATE)
+                    # Small delay to prevent CPU spinning
+                    time.sleep(config.INPUT_POLL_RATE)
+
+                # Record frame time for performance monitoring
+                record_frame_time(frame_timer.elapsed_ms)
 
         except KeyboardInterrupt:
-            print("\nReceived interrupt signal")
+            logger.info("Received interrupt signal")
         finally:
             self.shutdown()
 
     def shutdown(self):
         """Clean shutdown"""
-        print("\nShutting down...")
+        logger.info("Shutting down...")
         self.running = False
+
+        # Log final metrics summary
+        metrics = get_metrics()
+        summary = metrics.get_summary()
+        if summary:
+            logger.info("=== Final Performance Metrics ===")
+            for name, stats in summary.items():
+                logger.info(
+                    f"  {name}: avg={stats['avg']:.2f}ms, "
+                    f"min={stats['min']:.2f}ms, max={stats['max']:.2f}ms"
+                )
 
         # Save pet one last time
         if self.pet:
             self._save_pet()
-            print("Pet state saved")
+            logger.info("Pet state saved")
 
         # Stop social features
         if self.message_manager:
             self.message_manager.stop_queue_processor()
-            print("Message queue processor stopped")
+            logger.info("Message queue processor stopped")
 
         if self.wifi_manager:
             self.wifi_manager.stop_server()
-            print("WiFi server stopped")
+            logger.info("WiFi server stopped")
 
         # Clean up resources
         self.display.close()
