@@ -9,9 +9,9 @@ import os
 import sys
 
 # Database path (relative to this script's location)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-DATA_DIR = os.path.join(os.path.dirname(PROJECT_ROOT), "data")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # src/
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)               # NotaGotchi/
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")            # NotaGotchi/data/
 DATABASE_PATH = os.path.join(DATA_DIR, "not-a-gotchi.db")
 
 
