@@ -23,6 +23,7 @@ class ScreenManager:
         self.text_entry_char_index = 0
         self.confirmation_selection = True  # True = Yes, False = No
         self.confirmation_callback = None
+        self.confirmation_reject_callback = None
         self.confirmation_message = ""
 
         # Care menu state
@@ -256,12 +257,27 @@ class ScreenManager:
                 return "confirmation_yes"
             else:
                 # No selected
-                self.go_home()
+                if self.confirmation_reject_callback:
+                    current_screen = self.current_screen
+                    self.confirmation_reject_callback()
+                    self.confirmation_reject_callback = None
+                    # Only go home if callback didn't change the screen
+                    if self.current_screen == current_screen:
+                        self.go_home()
+                else:
+                    self.go_home()
                 return "confirmation_no"
 
         elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
-            # Cancel (same as No)
-            self.go_home()
+            # Cancel (same as No - also call reject callback)
+            if self.confirmation_reject_callback:
+                current_screen = self.current_screen
+                self.confirmation_reject_callback()
+                self.confirmation_reject_callback = None
+                if self.current_screen == current_screen:
+                    self.go_home()
+            else:
+                self.go_home()
             return "confirmation_cancel"
 
         return None
@@ -480,16 +496,18 @@ class ScreenManager:
 
         return None
 
-    def show_confirmation(self, message: str, callback: Callable):
+    def show_confirmation(self, message: str, callback: Callable, reject_callback: Callable = None):
         """
         Show confirmation dialog
 
         Args:
             message: Confirmation message
             callback: Function to call if user selects Yes
+            reject_callback: Optional function to call if user selects No
         """
         self.confirmation_message = message
         self.confirmation_callback = callback
+        self.confirmation_reject_callback = reject_callback
         self.confirmation_selection = True
         self.set_screen(config.ScreenState.CONFIRM)
 

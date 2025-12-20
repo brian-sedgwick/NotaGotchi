@@ -465,6 +465,7 @@ class NotAGotchiApp:
             return
 
         from_name = request.get('pet_name', 'Unknown')
+        device_name = request.get('device_name')
 
         def accept_request():
             print(f"Accepting friend request from {from_name}")
@@ -476,9 +477,20 @@ class NotAGotchiApp:
             if len(requests) == 0:
                 self.screen_manager.set_screen(config.ScreenState.MENU)
 
+        def reject_request():
+            print(f"Rejecting friend request from {from_name}")
+            self.social_coordinator.reject_friend_request(device_name)
+            self.action_occurred = True
+            # Refresh the requests list
+            requests = self.social_coordinator.get_pending_requests()
+            self.screen_manager.set_pending_requests(requests)
+            if len(requests) == 0:
+                self.screen_manager.set_screen(config.ScreenState.MENU)
+
         self.screen_manager.show_confirmation(
             f"Accept {from_name} as friend?",
-            accept_request
+            accept_request,
+            reject_request
         )
 
     def _render_display(self):
