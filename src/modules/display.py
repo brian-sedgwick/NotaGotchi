@@ -394,7 +394,8 @@ class DisplayManager:
             prefix = "+" if online else "o"  # + for online, o for offline
             items.append(f"{prefix} {name}")
 
-        items.append("> Find Friends")  # Always last option
+        items.append("> Find Friends")
+        items.append("< Back")
 
         # Draw visible items
         visible_items = 5  # Number of items that fit
@@ -449,31 +450,52 @@ class DisplayManager:
         y = config.STATUS_AREA_Y + 2
         item_height = 18
 
+        # Build items list: devices + Back option
+        items = []
+        for device in devices:
+            # Extract pet name from device name (e.g., "Buddy_notagotchi" -> "Buddy")
+            full_name = device.get('name', 'Unknown')
+            suffix = f"_{config.DEVICE_ID_PREFIX}"
+            if full_name.endswith(suffix):
+                name = full_name[:-len(suffix)]
+            else:
+                name = full_name
+            items.append(name)
+        items.append("< Back")
+
         if len(devices) == 0:
             draw.text((x, y), "Scanning...", fill=0, font=self.font_small)
             draw.text((x, y + 20), "No devices found", fill=0, font=self.font_small)
-            draw.text((x, y + 50), "Press to go back", fill=0, font=self.font_small)
+            # Still show Back option
+            y_pos = y + 50
+            if selected_index == 0:  # Back is selected
+                draw.rectangle([(x - 2, y_pos - 1),
+                              (self.width - 5, y_pos + item_height - 3)],
+                              fill=0)
+                draw.text((x, y_pos), "< Back", fill=1, font=self.font_small)
+            else:
+                draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
         else:
-            # Draw device list
+            # Draw item list (devices + Back)
             visible_items = 5
             start_idx = max(0, selected_index - visible_items + 1)
-            end_idx = min(len(devices), start_idx + visible_items)
+            end_idx = min(len(items), start_idx + visible_items)
 
             for i in range(start_idx, end_idx):
-                device = devices[i]
-                name = device.get('name', 'Unknown')
+                item_text = items[i]
                 y_pos = y + (i - start_idx) * item_height
 
                 if i == selected_index:
                     draw.rectangle([(x - 2, y_pos - 1),
                                   (self.width - 5, y_pos + item_height - 3)],
                                   fill=0)
-                    draw.text((x, y_pos), name, fill=1, font=self.font_small)
+                    draw.text((x, y_pos), item_text, fill=1, font=self.font_small)
                 else:
-                    draw.text((x, y_pos), name, fill=0, font=self.font_small)
+                    draw.text((x, y_pos), item_text, fill=0, font=self.font_small)
 
-            # Hint at bottom
-            draw.text((x, self.height - 15), "Press to add", fill=0, font=self.font_small)
+            # Hint at bottom (only if not on Back)
+            if selected_index < len(devices):
+                draw.text((x, self.height - 15), "Press to add", fill=0, font=self.font_small)
 
         return image
 
@@ -510,34 +532,49 @@ class DisplayManager:
         y = config.STATUS_AREA_Y + 2
         item_height = 18
 
+        # Build items list: requests + Back option
+        items = []
+        for request in requests:
+            name = request.get('from_pet_name', 'Unknown')
+            items.append(name)
+        items.append("< Back")
+
         if len(requests) == 0:
             draw.text((x, y), "No requests", fill=0, font=self.font_small)
-            draw.text((x, y + 30), "Press to go back", fill=0, font=self.font_small)
+            # Still show Back option
+            y_pos = y + 30
+            if selected_index == 0:  # Back is selected
+                draw.rectangle([(x - 2, y_pos - 1),
+                              (self.width - 5, y_pos + item_height - 3)],
+                              fill=0)
+                draw.text((x, y_pos), "< Back", fill=1, font=self.font_small)
+            else:
+                draw.text((x, y_pos), "< Back", fill=0, font=self.font_small)
         else:
             # Draw count
             draw.text((x, y), f"Pending: {len(requests)}", fill=0, font=self.font_small)
             y += 15
 
-            # Draw request list
+            # Draw item list (requests + Back)
             visible_items = 4
             start_idx = max(0, selected_index - visible_items + 1)
-            end_idx = min(len(requests), start_idx + visible_items)
+            end_idx = min(len(items), start_idx + visible_items)
 
             for i in range(start_idx, end_idx):
-                request = requests[i]
-                name = request.get('from_pet_name', 'Unknown')
+                item_text = items[i]
                 y_pos = y + (i - start_idx) * item_height
 
                 if i == selected_index:
                     draw.rectangle([(x - 2, y_pos - 1),
                                   (self.width - 5, y_pos + item_height - 3)],
                                   fill=0)
-                    draw.text((x, y_pos), name, fill=1, font=self.font_small)
+                    draw.text((x, y_pos), item_text, fill=1, font=self.font_small)
                 else:
-                    draw.text((x, y_pos), name, fill=0, font=self.font_small)
+                    draw.text((x, y_pos), item_text, fill=0, font=self.font_small)
 
-            # Hint at bottom
-            draw.text((x, self.height - 15), "Press to accept", fill=0, font=self.font_small)
+            # Hint at bottom (only if not on Back)
+            if selected_index < len(requests):
+                draw.text((x, self.height - 15), "Press to accept", fill=0, font=self.font_small)
 
         return image
 
@@ -587,7 +624,7 @@ class DisplayManager:
         draw.text((x, y + 70), f"To: {friend_name}", fill=0, font=self.font_small)
 
         # Hint
-        draw.text((x, self.height - 15), "Press to send", fill=0, font=self.font_small)
+        draw.text((x, self.height - 15), "Press:send Hold:back", fill=0, font=self.font_small)
 
         return image
 
@@ -649,7 +686,7 @@ class DisplayManager:
         draw.text((x, self.height - 28), f"To: {friend_name}", fill=0, font=self.font_small)
 
         # Hint
-        draw.text((x, self.height - 15), "Press to send", fill=0, font=self.font_small)
+        draw.text((x, self.height - 15), "Press:send Hold:back", fill=0, font=self.font_small)
 
         return image
 

@@ -292,8 +292,8 @@ class ScreenManager:
 
     def _handle_friends_list_input(self, event: InputEvent) -> Optional[str]:
         """Handle input on friends list screen"""
-        # Include "Find Friends" as last option
-        total_items = len(self.friends_list) + 1  # +1 for Find Friends option
+        # Items: friends + "Find Friends" + "Back"
+        total_items = len(self.friends_list) + 2  # +2 for Find Friends and Back
 
         if event.type == InputEvent.TYPE_ROTATE_CW:
             self.friends_list_index = (self.friends_list_index + 1) % total_items
@@ -302,9 +302,12 @@ class ScreenManager:
             self.friends_list_index = (self.friends_list_index - 1) % total_items
 
         elif event.type == InputEvent.TYPE_BUTTON_PRESS:
-            if self.friends_list_index >= len(self.friends_list):
+            if self.friends_list_index == len(self.friends_list):
                 # "Find Friends" selected
                 self.set_screen(config.ScreenState.FIND_FRIENDS)
+            elif self.friends_list_index == len(self.friends_list) + 1:
+                # "Back" selected
+                self.set_screen(config.ScreenState.MENU)
             else:
                 # Friend selected - open message menu
                 friend = self.friends_list[self.friends_list_index]
@@ -319,22 +322,23 @@ class ScreenManager:
 
     def _handle_find_friends_input(self, event: InputEvent) -> Optional[str]:
         """Handle input on find friends screen"""
-        if len(self.discovered_devices) == 0:
-            # No devices - any input goes back
-            if event.type in (InputEvent.TYPE_BUTTON_PRESS, InputEvent.TYPE_BUTTON_LONG_PRESS):
-                self.set_screen(config.ScreenState.FRIENDS_LIST)
-            return None
+        # Items: devices + "Back"
+        total_items = len(self.discovered_devices) + 1  # +1 for Back
 
         if event.type == InputEvent.TYPE_ROTATE_CW:
-            self.find_friends_index = (self.find_friends_index + 1) % len(self.discovered_devices)
+            self.find_friends_index = (self.find_friends_index + 1) % total_items
 
         elif event.type == InputEvent.TYPE_ROTATE_CCW:
-            self.find_friends_index = (self.find_friends_index - 1) % len(self.discovered_devices)
+            self.find_friends_index = (self.find_friends_index - 1) % total_items
 
         elif event.type == InputEvent.TYPE_BUTTON_PRESS:
-            # Send friend request to selected device
-            device = self.discovered_devices[self.find_friends_index]
-            return ("send_friend_request", device)
+            if self.find_friends_index >= len(self.discovered_devices):
+                # "Back" selected
+                self.set_screen(config.ScreenState.FRIENDS_LIST)
+            else:
+                # Send friend request to selected device
+                device = self.discovered_devices[self.find_friends_index]
+                return ("send_friend_request", device)
 
         elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
             self.set_screen(config.ScreenState.FRIENDS_LIST)
@@ -343,22 +347,23 @@ class ScreenManager:
 
     def _handle_friend_requests_input(self, event: InputEvent) -> Optional[str]:
         """Handle input on friend requests screen"""
-        if len(self.pending_requests) == 0:
-            # No requests - any input goes back
-            if event.type in (InputEvent.TYPE_BUTTON_PRESS, InputEvent.TYPE_BUTTON_LONG_PRESS):
-                self.set_screen(config.ScreenState.MENU)
-            return None
+        # Items: requests + "Back"
+        total_items = len(self.pending_requests) + 1  # +1 for Back
 
         if event.type == InputEvent.TYPE_ROTATE_CW:
-            self.friend_requests_index = (self.friend_requests_index + 1) % len(self.pending_requests)
+            self.friend_requests_index = (self.friend_requests_index + 1) % total_items
 
         elif event.type == InputEvent.TYPE_ROTATE_CCW:
-            self.friend_requests_index = (self.friend_requests_index - 1) % len(self.pending_requests)
+            self.friend_requests_index = (self.friend_requests_index - 1) % total_items
 
         elif event.type == InputEvent.TYPE_BUTTON_PRESS:
-            # Accept/show options for selected request
-            request = self.pending_requests[self.friend_requests_index]
-            return ("handle_friend_request", request)
+            if self.friend_requests_index >= len(self.pending_requests):
+                # "Back" selected
+                self.set_screen(config.ScreenState.MENU)
+            else:
+                # Accept/show options for selected request
+                request = self.pending_requests[self.friend_requests_index]
+                return ("handle_friend_request", request)
 
         elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
             self.set_screen(config.ScreenState.MENU)

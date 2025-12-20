@@ -314,7 +314,7 @@ SERVICE_PROPERTIES = {
 }
 
 # Device identification
-DEVICE_ID_PREFIX = "notagotchi"    # Creates "notagotchi_PetName"
+DEVICE_ID_PREFIX = "notagotchi"    # Creates "PetName_notagotchi"
 
 # ============================================================================
 # MESSAGING

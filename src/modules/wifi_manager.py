@@ -136,6 +136,31 @@ class WiFiManager:
         except Exception as e:
             print(f"⚠️  Error during WiFi server shutdown: {e}")
 
+    def update_device_name(self, new_name: str):
+        """
+        Update the device name and re-advertise via mDNS
+
+        Args:
+            new_name: New device name for mDNS advertising
+        """
+        print(f"Updating WiFi device name to: {new_name}")
+
+        # Stop current mDNS advertising
+        if self.avahi_publish_process:
+            self.avahi_publish_process.terminate()
+            try:
+                self.avahi_publish_process.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                self.avahi_publish_process.kill()
+            self.avahi_publish_process = None
+
+        # Update name
+        self.device_name = new_name
+
+        # Restart mDNS advertising with new name
+        if self.running:
+            self._setup_mdns()
+
     def discover_devices(self, duration: float = None) -> List[Dict[str, Any]]:
         """
         Discover NotaGotchi devices on network via avahi

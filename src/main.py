@@ -88,10 +88,10 @@ class NotAGotchiApp:
         try:
             # Get device name (will use pet name once available)
             if self.pet:
-                device_name = f"{config.DEVICE_ID_PREFIX}_{self.pet.name}"
+                device_name = f"{self.pet.name}_{config.DEVICE_ID_PREFIX}"
                 pet_name = self.pet.name
             else:
-                device_name = f"{config.DEVICE_ID_PREFIX}_NotAGotchi"
+                device_name = f"NotAGotchi_{config.DEVICE_ID_PREFIX}"
                 pet_name = "NotAGotchi"
 
             print("\nInitializing social features...")
@@ -381,6 +381,13 @@ class NotAGotchiApp:
                 pet_data = self.db.get_active_pet()
                 self.pet = Pet.from_dict(pet_data)
                 print(f"Created new pet: {name}")
+
+                # Update WiFi device name with new pet name
+                new_device_name = f"{name}_{config.DEVICE_ID_PREFIX}"
+                if self.wifi_manager:
+                    self.wifi_manager.update_device_name(new_device_name)
+                if self.social_coordinator:
+                    self.social_coordinator.own_pet_name = name
         else:
             # Rename existing pet
             self.pet.name = name
