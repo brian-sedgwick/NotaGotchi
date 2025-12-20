@@ -638,13 +638,13 @@ class DisplayManager:
             else:
                 time_str = ""
 
-            # Build single-line display: "* Sender (1h) - preview"
+            # Build single-line display: "* Sender (1h) - preview" or "  Sender (1h) - preview"
             line = sender
             if time_str:
                 line += f" ({time_str})"
             line += " - " + (content if content else "...")
-            if not is_read:
-                line = "* " + line
+            # Prefix: "* " for unread, "  " for read (keeps alignment)
+            line = ("* " if not is_read else "  ") + line
             items.append(line)
 
         if len(messages) == 0:
