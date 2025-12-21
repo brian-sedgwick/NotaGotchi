@@ -297,7 +297,7 @@ class ChatMessageHandler(MessageHandler):
                 'content': content,
                 'content_type': content_type,
                 'message_id': message_id
-            })
+            }, sender_ip)
 
         return True
 

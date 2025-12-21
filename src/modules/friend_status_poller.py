@@ -203,8 +203,7 @@ class FriendStatusPoller:
             # Use existing WiFiManager.is_device_reachable()
             is_reachable = self.wifi.is_device_reachable(
                 friend['ip'],
-                friend['port'],
-                timeout=self.check_timeout
+                friend['port']
             )
 
             return (device_name, is_reachable)
