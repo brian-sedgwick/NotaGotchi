@@ -478,6 +478,6 @@ FPS_TARGET = 30  # Target frames per second (not critical for e-ink)
 # FRIEND PRESENCE POLLING
 # ============================================================================
 FRIEND_POLL_INTERVAL = 15.0          # Seconds between presence checks
-FRIEND_CHECK_TIMEOUT = 2.0           # Seconds to wait for each device
-FRIEND_MAX_PARALLEL_CHECKS = 10      # Max concurrent checks
-FRIEND_ONLINE_THRESHOLD = 300        # Seconds (5 min) to consider online
+FRIEND_CHECK_TIMEOUT = 2.0           # Seconds to wait for each device (no longer used)
+FRIEND_MAX_PARALLEL_CHECKS = 10      # Max concurrent checks (no longer used)
+FRIEND_ONLINE_THRESHOLD = 60         # Seconds (1 min) grace period for discovery failures

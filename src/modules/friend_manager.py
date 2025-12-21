@@ -284,16 +284,17 @@ class FriendManager:
                         SELECT device_name, pet_name, last_ip, last_port, last_seen,
                                friendship_established
                         FROM friends
-                        WHERE last_seen > ?
+                        WHERE last_seen > ? AND device_name != ?
                         ORDER BY last_seen DESC
-                    ''', (cutoff_time,))
+                    ''', (cutoff_time, self.own_device_name))
                 else:
                     cursor.execute('''
                         SELECT device_name, pet_name, last_ip, last_port, last_seen,
                                friendship_established
                         FROM friends
+                        WHERE device_name != ?
                         ORDER BY last_seen DESC
-                    ''')
+                    ''', (self.own_device_name,))
 
                 friends = []
                 current_time = time.time()

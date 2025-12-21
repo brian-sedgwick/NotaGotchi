@@ -2,13 +2,14 @@
 Not-A-Gotchi Friend Status Poller
 
 Background thread that periodically polls friend presence to update online status.
-Uses parallel checking with ThreadPoolExecutor for efficient multi-friend polling.
+Uses mDNS discovery to find friends by device_name (not by stored IP addresses).
+
+Discovery-first approach ensures reliable friend detection across DHCP IP changes.
 """
 
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, Any, Callable, Optional, Tuple, List
+from typing import Dict, Any, Callable, Optional, List
 from modules.logging_config import get_logger
 from modules import config
 
@@ -17,13 +18,14 @@ logger = get_logger("friend_status_poller")
 
 class FriendStatusPoller:
     """
-    Background thread that periodically polls friend presence.
+    Background thread that periodically polls friend presence using mDNS discovery.
 
     Features:
-    - Parallel friend checking (ThreadPoolExecutor)
+    - mDNS-based friend discovery (by device_name, not IP address)
     - Configurable polling interval (default 15s)
     - Status change detection and notification
     - Thread-safe database updates
+    - Grace period for temporary network issues (60s)
     """
 
     def __init__(self, friend_manager, wifi_manager,
@@ -35,10 +37,10 @@ class FriendStatusPoller:
 
         Args:
             friend_manager: FriendManager instance for database operations
-            wifi_manager: WiFiManager instance for network checks
+            wifi_manager: WiFiManager instance for mDNS discovery
             polling_interval: Seconds between polls (default from config)
-            check_timeout: Seconds to wait per device (default from config)
-            max_parallel_checks: Max concurrent checks (default from config)
+            check_timeout: DEPRECATED - no longer used
+            max_parallel_checks: DEPRECATED - no longer used
         """
         self.friends = friend_manager
         self.wifi = wifi_manager
@@ -136,81 +138,65 @@ class FriendStatusPoller:
 
     def _poll_all_friends(self) -> Dict[str, bool]:
         """
-        Check all friends in parallel.
+        Check all friends using mDNS discovery.
+
+        Discovery-first approach:
+        1. Perform mDNS scan to get all devices on network
+        2. Match friends to discovered devices by device_name
+        3. Update stored IPs for matched friends
+        4. Return reachability map
 
         Returns:
             Dict mapping device_name to reachability (True/False)
         """
+        # Get friends list
         friends = self.friends.get_friends()
-
         if not friends:
             return {}
 
+        # Perform mDNS discovery (single scan for all friends)
+        try:
+            discovered_devices = self.wifi.discover_devices(
+                duration=config.WIFI_DISCOVERY_TIMEOUT
+            )
+            logger.debug(f"Discovered {len(discovered_devices)} devices via mDNS")
+        except Exception as e:
+            logger.error(f"mDNS discovery failed: {e}", exc_info=True)
+            # Graceful degradation - return empty discovery
+            discovered_devices = []
+
+        # Build lookup map: device_name -> device_info
+        device_map = {device['name']: device for device in discovered_devices}
+
+        # Match friends to discovered devices
         reachability_map = {}
 
-        # Check all friends concurrently
-        with ThreadPoolExecutor(max_workers=self.max_parallel_checks) as executor:
-            # Submit all checks at once
-            futures = {
-                executor.submit(self._check_friend_reachability, friend): friend
-                for friend in friends
-            }
+        for friend in friends:
+            device_name = friend['device_name']
 
-            # Collect results as they complete
-            for future in as_completed(futures, timeout=self.check_timeout + 1):
-                try:
-                    device_name, is_reachable = future.result()
-                    reachability_map[device_name] = is_reachable
+            if device_name in device_map:
+                # Friend is online and discovered
+                device_info = device_map[device_name]
+                reachability_map[device_name] = True
 
-                    # Update last_seen if reachable (thread-safe)
-                    if is_reachable:
-                        friend = futures[future]
-                        self.friends.update_friend_contact(
-                            device_name,
-                            friend['ip'],
-                            friend['port']
-                        )
-                        logger.debug(f"Friend {device_name} is reachable")
-                    else:
-                        logger.debug(f"Friend {device_name} is not reachable")
+                # Update stored IP/port (thread-safe)
+                self.friends.update_friend_contact(
+                    device_name,
+                    device_info['address'],
+                    device_info['port']
+                )
 
-                except Exception as e:
-                    # Mark as unreachable on error
-                    friend = futures[future]
-                    device_name = friend['device_name']
-                    reachability_map[device_name] = False
-                    logger.warning(f"Error checking friend {device_name}: {e}")
+                logger.debug(
+                    f"Friend {device_name} online: "
+                    f"{device_info['address']}:{device_info['port']}"
+                )
+            else:
+                # Friend not discovered in this scan
+                reachability_map[device_name] = False
+                logger.debug(f"Friend {device_name} not discovered")
 
         return reachability_map
 
-    def _check_friend_reachability(self, friend: Dict[str, Any]) -> Tuple[str, bool]:
-        """
-        Check if a single friend is reachable (runs in ThreadPoolExecutor).
-
-        Args:
-            friend: Friend dict with device_name, ip, port
-
-        Returns:
-            Tuple of (device_name, is_reachable)
-        """
-        device_name = friend['device_name']
-
-        if not friend.get('ip') or not friend.get('port'):
-            logger.debug(f"Friend {device_name} has no IP/port, marking unreachable")
-            return (device_name, False)
-
-        try:
-            # Use existing WiFiManager.is_device_reachable()
-            is_reachable = self.wifi.is_device_reachable(
-                friend['ip'],
-                friend['port']
-            )
-
-            return (device_name, is_reachable)
-
-        except Exception as e:
-            logger.warning(f"Exception checking {device_name}: {e}")
-            return (device_name, False)
 
     def _detect_status_changes(self, reachability_map: Dict[str, bool]) -> None:
         """

@@ -10,6 +10,8 @@ import os
 import time
 import json
 import threading
+import shutil
+from datetime import datetime
 from contextlib import contextmanager
 from typing import Optional, Dict, Any, List
 from . import config
@@ -478,6 +480,69 @@ class DatabaseManager:
 
             except sqlite3.Error as e:
                 print(f"Database integrity check failed: {e}")
+                return False
+
+    def factory_reset(self) -> bool:
+        """
+        Perform factory reset: clear all user data and return to initial state.
+
+        This method:
+        1. Creates a backup of the current database
+        2. Clears all tables (pet, friends, messages, etc.)
+        3. Resets the database to initial state
+
+        Returns:
+            True if reset successful, False otherwise
+
+        Note:
+            The caller should handle restarting the application/service
+            to trigger the initial setup flow (pet name entry).
+        """
+        with self._db_lock():
+            try:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_path = f"{self.db_path}.backup.{timestamp}"
+
+                # Step 1: Create backup
+                print(f"📦 Creating backup: {backup_path}")
+                shutil.copy2(self.db_path, backup_path)
+                print(f"✅ Backup created successfully")
+
+                # Step 2: Clear all tables
+                cursor = self.connection.cursor()
+
+                print("🗑️  Clearing all user data...")
+
+                # Deactivate current pet (instead of deleting for history preservation)
+                cursor.execute("UPDATE pet_state SET is_active = 0")
+
+                # Clear all social data
+                cursor.execute("DELETE FROM friends")
+                cursor.execute("DELETE FROM friend_requests")
+                cursor.execute("DELETE FROM messages")
+                cursor.execute("DELETE FROM message_queue")
+
+                # Clear pet history (optional - comment out if you want to preserve history)
+                cursor.execute("DELETE FROM pet_history")
+
+                # Clear system config
+                cursor.execute("DELETE FROM system_config")
+
+                # Commit all changes
+                self.connection.commit()
+
+                print("✅ All user data cleared")
+                print("✅ Factory reset complete")
+                print("")
+                print("ℹ️  On next startup, you'll be prompted to enter a new pet name.")
+
+                return True
+
+            except (sqlite3.Error, IOError) as e:
+                print(f"❌ Factory reset failed: {e}")
+                # Rollback on error
+                if self.connection:
+                    self.connection.rollback()
                 return False
 
     def close(self):
