@@ -493,6 +493,15 @@ class NotAGotchiApp:
                     # Handle string actions
                     elif action == "name_entry_complete":
                         self._complete_name_entry()
+                    elif action == "delete_single_message":
+                        self._handle_delete_single_message()
+                    elif action == "delete_conversation":
+                        self._handle_delete_conversation()
+                    elif action == "remove_friend":
+                        self._handle_remove_friend()
+                    elif action == "message_friend":
+                        # This is handled by screen navigation in screen_manager
+                        pass
                     else:
                         # Trigger registered action
                         self.screen_manager.trigger_action(action)
@@ -516,6 +525,21 @@ class NotAGotchiApp:
         """Handle accepting/rejecting a friend request - delegates to ActionHandler"""
         if hasattr(self, 'action_handler'):
             self.action_handler.handle_friend_request_action(request)
+
+    def _handle_delete_single_message(self):
+        """Handle deleting a single message - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.handle_delete_single_message()
+
+    def _handle_delete_conversation(self):
+        """Handle deleting a conversation - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.handle_delete_conversation()
+
+    def _handle_remove_friend(self):
+        """Handle removing a friend - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.handle_remove_friend()
 
     def _render_display(self):
         """Render current screen to display"""
@@ -572,6 +596,10 @@ class NotAGotchiApp:
             image = self._render_inbox_screen()
         elif self.screen_manager.is_message_detail():
             image = self._render_message_detail_screen()
+        elif self.screen_manager.is_message_options():
+            image = self._render_message_options_screen()
+        elif self.screen_manager.is_friend_options():
+            image = self._render_friend_options_screen()
         else:
             return  # Unknown screen
 
@@ -885,6 +913,20 @@ class NotAGotchiApp:
             wifi_connected=wifi_connected,
             online_friends=online_friends,
             unread_messages=unread_messages
+        )
+
+    def _render_message_options_screen(self):
+        """Render message options menu screen"""
+        return self.display.draw_message_options(
+            self.screen_manager.message_options_index
+        )
+
+    def _render_friend_options_screen(self):
+        """Render friend options menu screen"""
+        friend_name = self.screen_manager.selected_friend_name or "Friend"
+        return self.display.draw_friend_options(
+            friend_name,
+            self.screen_manager.friend_options_index
         )
 
     def run(self):

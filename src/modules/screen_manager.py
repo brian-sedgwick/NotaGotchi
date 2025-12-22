@@ -57,6 +57,14 @@ class ScreenManager:
         self.inbox_index = 0
         self.selected_message = None
 
+        # Message options state
+        self.message_options_index = 0
+        self.selected_conversation_device = None  # Device name for conversation operations
+
+        # Friend options state
+        self.friend_options_index = 0
+        self.selected_friend_for_options = None  # Device name for friend operations
+
         # Action callbacks
         self.action_callbacks: Dict[str, Callable] = {}
 
@@ -104,6 +112,10 @@ class ScreenManager:
             self.inbox_index = 0
         elif screen_state == config.ScreenState.MESSAGE_DETAIL:
             pass  # Keep selected_message as-is
+        elif screen_state == config.ScreenState.MESSAGE_OPTIONS:
+            self.message_options_index = 0
+        elif screen_state == config.ScreenState.FRIEND_OPTIONS:
+            self.friend_options_index = 0
 
     def go_back(self):
         """Return to previous screen"""
@@ -185,6 +197,10 @@ class ScreenManager:
             return self._handle_inbox_input(event)
         elif self.current_screen == config.ScreenState.MESSAGE_DETAIL:
             return self._handle_message_detail_input(event)
+        elif self.current_screen == config.ScreenState.MESSAGE_OPTIONS:
+            return self._handle_message_options_input(event)
+        elif self.current_screen == config.ScreenState.FRIEND_OPTIONS:
+            return self._handle_friend_options_input(event)
 
         return None
 
@@ -359,7 +375,17 @@ class ScreenManager:
                 self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
 
         elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
-            self.set_screen(config.ScreenState.MENU)
+            # Long press on friend: show options menu
+            # Long press on "Find Friends" or "Back": go back to menu
+            if self.friends_list_index < len(self.friends_list):
+                friend = self.friends_list[self.friends_list_index]
+                self.selected_friend_for_options = friend.get('device_name')
+                self.selected_friend = friend.get('device_name')
+                self.selected_friend_name = friend.get('pet_name', 'Friend')
+                self.set_screen(config.ScreenState.FRIEND_OPTIONS)
+            else:
+                # Long press on "Find Friends" or "Back" - go back to menu
+                self.set_screen(config.ScreenState.MENU)
 
         return None
 
@@ -606,12 +632,68 @@ class ScreenManager:
     def _handle_message_detail_input(self, event: InputEvent) -> Optional[str]:
         """Handle input on message detail screen"""
         if event.type == InputEvent.TYPE_BUTTON_PRESS:
-            # Return to inbox
+            # Short press: Return to inbox
             self.set_screen(config.ScreenState.INBOX)
 
         elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
-            # Return to inbox
-            self.set_screen(config.ScreenState.INBOX)
+            # Long press: Show options menu
+            if self.selected_message:
+                self.selected_conversation_device = self.selected_message.get('from_device_name')
+                self.set_screen(config.ScreenState.MESSAGE_OPTIONS)
+            else:
+                # No message selected, just go back
+                self.set_screen(config.ScreenState.INBOX)
+
+        return None
+
+    def _handle_message_options_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on message options menu"""
+        menu_items = config.MESSAGE_OPTIONS_MENU
+
+        if event.type == InputEvent.TYPE_ROTATE_CW:
+            self.message_options_index = (self.message_options_index + 1) % len(menu_items)
+
+        elif event.type == InputEvent.TYPE_ROTATE_CCW:
+            self.message_options_index = (self.message_options_index - 1) % len(menu_items)
+
+        elif event.type == InputEvent.TYPE_BUTTON_PRESS:
+            selected_item = menu_items[self.message_options_index]
+            action = selected_item['action']
+            if action == 'back':
+                self.set_screen(config.ScreenState.MESSAGE_DETAIL)
+            else:
+                return action  # Return action for handler to execute
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            # Long press goes back to message detail
+            self.set_screen(config.ScreenState.MESSAGE_DETAIL)
+
+        return None
+
+    def _handle_friend_options_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on friend options menu"""
+        menu_items = config.FRIEND_OPTIONS_MENU
+
+        if event.type == InputEvent.TYPE_ROTATE_CW:
+            self.friend_options_index = (self.friend_options_index + 1) % len(menu_items)
+
+        elif event.type == InputEvent.TYPE_ROTATE_CCW:
+            self.friend_options_index = (self.friend_options_index - 1) % len(menu_items)
+
+        elif event.type == InputEvent.TYPE_BUTTON_PRESS:
+            selected_item = menu_items[self.friend_options_index]
+            action = selected_item['action']
+            if action == 'back':
+                self.set_screen(config.ScreenState.FRIENDS_LIST)
+            elif action == 'message_friend':
+                # Send message to friend - go to message type menu
+                self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
+            else:
+                return action  # remove_friend - return for handler to execute
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            # Long press goes back to friends list
+            self.set_screen(config.ScreenState.FRIENDS_LIST)
 
         return None
 
@@ -742,6 +824,14 @@ class ScreenManager:
     def is_message_detail(self) -> bool:
         """Check if on message detail screen"""
         return self.current_screen == config.ScreenState.MESSAGE_DETAIL
+
+    def is_message_options(self) -> bool:
+        """Check if on message options screen"""
+        return self.current_screen == config.ScreenState.MESSAGE_OPTIONS
+
+    def is_friend_options(self) -> bool:
+        """Check if on friend options screen"""
+        return self.current_screen == config.ScreenState.FRIEND_OPTIONS
 
     def get_care_menu_state(self) -> Dict[str, Any]:
         """Get current care menu state for rendering"""

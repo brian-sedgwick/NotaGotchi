@@ -509,6 +509,87 @@ class MessageManager:
                 return []
 
     # ========================================================================
+    # MESSAGE DELETION
+    # ========================================================================
+
+    def delete_message(self, message_id: str) -> bool:
+        """
+        Delete a single message by ID
+
+        Args:
+            message_id: Message ID to delete
+
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute('DELETE FROM messages WHERE message_id = ?', (message_id,))
+                deleted = cursor.rowcount > 0
+                self.connection.commit()
+
+                if deleted:
+                    print(f"✅ Message deleted: {message_id}")
+                else:
+                    print(f"⚠️  Message not found: {message_id}")
+
+                return deleted
+            except sqlite3.Error as e:
+                print(f"❌ Error deleting message: {e}")
+                self.connection.rollback()
+                return False
+
+    def delete_conversation(self, friend_device_name: str) -> int:
+        """
+        Delete all messages with a specific friend (both sent and received)
+
+        Args:
+            friend_device_name: Device name of friend
+
+        Returns:
+            Number of messages deleted
+        """
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute('''
+                    DELETE FROM messages
+                    WHERE from_device_name = ? OR to_device_name = ?
+                ''', (friend_device_name, friend_device_name))
+                count = cursor.rowcount
+                self.connection.commit()
+
+                print(f"✅ Deleted {count} message(s) with {friend_device_name}")
+                return count
+            except sqlite3.Error as e:
+                print(f"❌ Error deleting conversation: {e}")
+                self.connection.rollback()
+                return 0
+
+    def get_conversation_message_count(self, friend_device_name: str) -> int:
+        """
+        Get count of messages in a conversation (for confirmation dialogs)
+
+        Args:
+            friend_device_name: Device name of friend
+
+        Returns:
+            Total number of messages (sent + received) with this friend
+        """
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute('''
+                    SELECT COUNT(*) FROM messages
+                    WHERE from_device_name = ? OR to_device_name = ?
+                ''', (friend_device_name, friend_device_name))
+                return cursor.fetchone()[0]
+            except sqlite3.Error as e:
+                print(f"❌ Error counting messages: {e}")
+                return 0
+
+    # ========================================================================
     # QUEUE PROCESSING
     # ========================================================================
 

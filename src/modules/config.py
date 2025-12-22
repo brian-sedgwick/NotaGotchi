@@ -360,6 +360,9 @@ class ScreenState:
     PRESET_CATEGORY = "preset_category"      # Choose preset category
     PRESET_SELECT = "preset_select"          # Pick preset message
     TEXT_COMPOSE = "text_compose"            # Custom text entry
+    # Options menus
+    MESSAGE_OPTIONS = "message_options"      # Message options (delete msg/conversation)
+    FRIEND_OPTIONS = "friend_options"        # Friend options (send msg/remove friend)
 
 # ============================================================================
 # MENU STRUCTURE
@@ -388,6 +391,20 @@ MESSAGE_TYPE_MENU = [
     {"label": "Emoji", "action": "msg_emoji"},
     {"label": "Quick Msg", "action": "msg_preset"},
     {"label": "Custom", "action": "msg_custom"},
+    {"label": "Back", "action": "back"}
+]
+
+# Message options menu (delete operations)
+MESSAGE_OPTIONS_MENU = [
+    {"label": "Delete Msg", "action": "delete_single_message"},
+    {"label": "Delete Conv", "action": "delete_conversation"},
+    {"label": "Back", "action": "back"}
+]
+
+# Friend options menu (friend management)
+FRIEND_OPTIONS_MENU = [
+    {"label": "Send Message", "action": "message_friend"},
+    {"label": "Remove Friend", "action": "remove_friend"},
     {"label": "Back", "action": "back"}
 ]
 

@@ -468,35 +468,101 @@ class FriendManager:
                 self.connection.rollback()
                 return False
 
-    def remove_friend(self, device_name: str) -> bool:
+    def remove_friend(self, device_name: str) -> Dict[str, Any]:
         """
-        Remove a friend from the friends list
+        Remove a friend and all associated data (cascade deletion)
+
+        This removes:
+        - The friend from the friends table
+        - All messages (sent and received) with this friend
+        - All queued messages for this friend
 
         Args:
             device_name: Device name to remove
 
         Returns:
-            True if removed successfully
+            Dict with deletion stats: {
+                'friend_removed': bool,
+                'messages_deleted': int,
+                'queue_items_deleted': int
+            }
+        """
+        if not self.is_friend(device_name):
+            print(f"Cannot remove {device_name}: not a friend")
+            return {'friend_removed': False, 'messages_deleted': 0, 'queue_items_deleted': 0}
+
+        with self._db_lock():
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute('BEGIN IMMEDIATE')  # Explicit transaction
+
+                try:
+                    stats = {'friend_removed': False, 'messages_deleted': 0, 'queue_items_deleted': 0}
+
+                    # Delete associated messages
+                    cursor.execute('''
+                        DELETE FROM messages
+                        WHERE from_device_name = ? OR to_device_name = ?
+                    ''', (device_name, device_name))
+                    stats['messages_deleted'] = cursor.rowcount
+
+                    # Delete queued messages
+                    cursor.execute('DELETE FROM message_queue WHERE to_device_name = ?',
+                                 (device_name,))
+                    stats['queue_items_deleted'] = cursor.rowcount
+
+                    # Delete the friend
+                    cursor.execute('DELETE FROM friends WHERE device_name = ?', (device_name,))
+                    stats['friend_removed'] = cursor.rowcount > 0
+
+                    self.connection.commit()
+
+                    print(f"✅ Removed friend {device_name}: " +
+                          f"{stats['messages_deleted']} messages, " +
+                          f"{stats['queue_items_deleted']} queued items deleted")
+
+                    return stats
+
+                except Exception as e:
+                    self.connection.rollback()
+                    print(f"❌ Transaction failed, rolled back: {e}")
+                    raise
+
+            except sqlite3.Error as e:
+                print(f"❌ Error removing friend: {e}")
+                return {'friend_removed': False, 'messages_deleted': 0, 'queue_items_deleted': 0}
+
+    def get_friend_message_counts(self, device_name: str) -> Dict[str, int]:
+        """
+        Get message counts for a friend (for confirmation dialogs)
+
+        Args:
+            device_name: Device name of friend
+
+        Returns:
+            Dict with counts: {'messages': int, 'queued': int}
         """
         with self._db_lock():
             try:
                 cursor = self.connection.cursor()
-                cursor.execute('''
-                    DELETE FROM friends WHERE device_name = ?
-                ''', (device_name,))
 
-                if cursor.rowcount > 0:
-                    self.connection.commit()
-                    print(f"Friend removed: {device_name}")
-                    return True
-                else:
-                    print(f"Friend not found: {device_name}")
-                    return False
+                # Count messages (sent and received)
+                cursor.execute('''
+                    SELECT COUNT(*) FROM messages
+                    WHERE from_device_name = ? OR to_device_name = ?
+                ''', (device_name, device_name))
+                messages = cursor.fetchone()[0]
+
+                # Count queued messages
+                cursor.execute('SELECT COUNT(*) FROM message_queue WHERE to_device_name = ?',
+                             (device_name,))
+                queued = cursor.fetchone()[0]
+
+                return {'messages': messages, 'queued': queued}
 
             except sqlite3.Error as e:
-                print(f"❌ Error removing friend: {e}")
-                self.connection.rollback()
-                return False
+                print(f"❌ Error counting friend messages: {e}")
+                return {'messages': 0, 'queued': 0}
 
     def get_friend_count(self) -> int:
         """

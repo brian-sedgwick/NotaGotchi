@@ -511,6 +511,12 @@ class DisplayManager:
             self._draw_list_item(draw, x, y_pos, item_text,
                                 i == selected_index, item_height)
 
+        # Add hint at bottom when friend is selected
+        if selected_index < len(friends):
+            hint = "Press:msg Hold:options"
+            hint_x = self.width - draw.textlength(hint, font=self.font_small) - 5
+            draw.text((hint_x, self.height - 15), hint, font=self.font_small, fill=0)
+
         return image
 
     def draw_find_friends(self, devices: list, selected_index: int,
@@ -727,6 +733,12 @@ class DisplayManager:
                 self._draw_list_item(draw, x, y_pos, text,
                                     i == selected_index, item_height, inbox_font)
 
+        # Add hint at bottom when message is selected
+        if selected_index < len(messages):
+            hint = "Press:view Hold:delete"
+            hint_x = self.width - draw.textlength(hint, font=self.font_small) - 5
+            draw.text((hint_x, self.height - 15), hint, font=self.font_small, fill=0)
+
         return image
 
     def draw_message_detail(self, message: dict, pet_sprite: Optional[Image.Image] = None,
@@ -775,8 +787,78 @@ class DisplayManager:
             draw.text((x, y), line, fill=0, font=self.font_emoji)
             y += 16
 
-        # Hint at bottom
-        draw.text((x, self.height - 15), "Press: back", fill=0, font=self.font_small)
+        # Hint at bottom - updated to show long-press option
+        hint = "Press:back Hold:options"
+        hint_x = self.width - draw.textlength(hint, font=self.font_small) - 5
+        draw.text((hint_x, self.height - 15), hint, font=self.font_small, fill=0)
+
+        return image
+
+    def draw_message_options(self, selected_index: int = 0) -> Image.Image:
+        """
+        Draw message options menu
+
+        Args:
+            selected_index: Index of selected menu item
+
+        Returns:
+            PIL Image of message options screen
+        """
+        image, draw = self._create_canvas()
+
+        # Draw header
+        self._draw_header(draw, "Message Options", "")
+
+        # Draw menu items
+        menu_items = config.MESSAGE_OPTIONS_MENU
+        y_offset = config.HEADER_LINE_Y + 5
+
+        for i, item in enumerate(menu_items):
+            # Highlight selected item
+            if i == selected_index:
+                draw.rectangle([
+                    (2, y_offset),
+                    (self.width - 2, y_offset + config.MENU_ITEM_HEIGHT)
+                ], outline=0, width=1)
+
+            # Draw label
+            draw.text((5, y_offset + 2), item['label'], font=self.font_small, fill=0)
+            y_offset += config.MENU_ITEM_HEIGHT + 2
+
+        return image
+
+    def draw_friend_options(self, friend_name: str, selected_index: int = 0) -> Image.Image:
+        """
+        Draw friend options menu
+
+        Args:
+            friend_name: Name of friend being managed
+            selected_index: Index of selected menu item
+
+        Returns:
+            PIL Image of friend options screen
+        """
+        image, draw = self._create_canvas()
+
+        # Draw header with friend name (truncate if too long)
+        title = f"Options: {friend_name}"[:20]
+        self._draw_header(draw, title, "")
+
+        # Draw menu items
+        menu_items = config.FRIEND_OPTIONS_MENU
+        y_offset = config.HEADER_LINE_Y + 5
+
+        for i, item in enumerate(menu_items):
+            # Highlight selected item
+            if i == selected_index:
+                draw.rectangle([
+                    (2, y_offset),
+                    (self.width - 2, y_offset + config.MENU_ITEM_HEIGHT)
+                ], outline=0, width=1)
+
+            # Draw label
+            draw.text((5, y_offset + 2), item['label'], font=self.font_small, fill=0)
+            y_offset += config.MENU_ITEM_HEIGHT + 2
 
         return image
 

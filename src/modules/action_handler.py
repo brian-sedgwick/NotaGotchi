@@ -419,3 +419,147 @@ class ActionHandler:
             accept_request,
             reject_request
         )
+
+    # =========================================================================
+    # Message Deletion Actions
+    # =========================================================================
+
+    def handle_delete_single_message(self) -> None:
+        """Handle delete single message action"""
+        screen_manager = self._get_screen_manager()
+        message_manager = self._get_message_manager()
+
+        if not message_manager:
+            print("Message manager not available")
+            return
+
+        if not screen_manager.selected_message:
+            print("No message selected")
+            return
+
+        message = screen_manager.selected_message
+        message_id = message.get('message_id')
+        from_name = message.get('from_pet_name', 'Unknown')
+
+        def execute_delete():
+            if message_manager.delete_message(message_id):
+                # Refresh inbox
+                messages = message_manager.get_inbox(limit=100)
+                screen_manager.set_inbox_messages(messages)
+                screen_manager.set_screen(config.ScreenState.INBOX)
+                self._set_action_occurred(True)
+            else:
+                print(f"Failed to delete message {message_id}")
+                screen_manager.set_screen(config.ScreenState.MESSAGE_OPTIONS)
+
+        def cancel_delete():
+            screen_manager.set_screen(config.ScreenState.MESSAGE_OPTIONS)
+
+        screen_manager.show_confirmation(
+            f"Delete message from {from_name}?",
+            execute_delete,
+            cancel_delete
+        )
+
+    def handle_delete_conversation(self) -> None:
+        """Handle delete conversation action"""
+        screen_manager = self._get_screen_manager()
+        message_manager = self._get_message_manager()
+        social_coordinator = self._get_social_coordinator()
+
+        if not message_manager:
+            print("Message manager not available")
+            return
+
+        device_name = screen_manager.selected_conversation_device
+        if not device_name:
+            print("No conversation selected")
+            return
+
+        # Get friend name
+        friend_name = "Unknown"
+        if social_coordinator:
+            friend = social_coordinator.friend_manager.get_friend(device_name)
+            if friend:
+                friend_name = friend.get('pet_name', 'Unknown')
+
+        # Get message count
+        count = message_manager.get_conversation_message_count(device_name)
+
+        if count == 0:
+            print("No messages to delete")
+            screen_manager.set_screen(config.ScreenState.INBOX)
+            return
+
+        def execute_delete():
+            message_manager.delete_conversation(device_name)
+            # Refresh inbox
+            messages = message_manager.get_inbox(limit=100)
+            screen_manager.set_inbox_messages(messages)
+            screen_manager.set_screen(config.ScreenState.INBOX)
+            self._set_action_occurred(True)
+
+        def cancel_delete():
+            screen_manager.set_screen(config.ScreenState.MESSAGE_OPTIONS)
+
+        screen_manager.show_confirmation(
+            f"Delete {count} msg(s) with {friend_name}?",
+            execute_delete,
+            cancel_delete
+        )
+
+    # =========================================================================
+    # Friend Removal Actions
+    # =========================================================================
+
+    def handle_remove_friend(self) -> None:
+        """Handle remove friend action"""
+        screen_manager = self._get_screen_manager()
+        social_coordinator = self._get_social_coordinator()
+
+        if not social_coordinator:
+            print("Social coordinator not available")
+            return
+
+        device_name = screen_manager.selected_friend_for_options
+        if not device_name:
+            print("No friend selected")
+            return
+
+        friend = social_coordinator.friend_manager.get_friend(device_name)
+        if not friend:
+            print(f"Friend {device_name} not found")
+            screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
+            return
+
+        friend_name = friend.get('pet_name', 'Unknown')
+        counts = social_coordinator.friend_manager.get_friend_message_counts(device_name)
+        msg_count = counts['messages'] + counts['queued']
+
+        def execute_remove():
+            stats = social_coordinator.friend_manager.remove_friend(device_name)
+
+            if stats['friend_removed']:
+                print(f"Removed {friend_name}: {stats['messages_deleted']} messages deleted")
+                # Refresh friends list
+                friends = social_coordinator.get_friends()
+                screen_manager.set_friends_list(friends)
+                screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
+                self._set_action_occurred(True)
+            else:
+                print(f"Failed to remove friend {friend_name}")
+                screen_manager.set_screen(config.ScreenState.FRIEND_OPTIONS)
+
+        def cancel_remove():
+            screen_manager.set_screen(config.ScreenState.FRIEND_OPTIONS)
+
+        if msg_count > 0:
+            confirm_msg = f"Remove {friend_name}? ({msg_count} msg(s) deleted)"
+        else:
+            confirm_msg = f"Remove {friend_name}?"
+
+        screen_manager.show_confirmation(
+            confirm_msg,
+            execute_remove,
+            cancel_remove
+        )
