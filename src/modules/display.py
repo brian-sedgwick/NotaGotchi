@@ -1251,20 +1251,36 @@ class DisplayManager:
         title = f"Play with: {opponent_name}"[:25]
         self._draw_header(draw, title, "")
 
-        # Draw menu items
-        y_offset = config.HEADER_LINE_Y + 5
+        # Calculate visible area
+        y_start = config.HEADER_LINE_Y + 5
+        item_height = config.MENU_ITEM_HEIGHT + 2
+        available_height = self.height - y_start - 5  # Leave margin at bottom
+        visible_items = available_height // item_height
 
-        for i, item in enumerate(items):
+        # Calculate which items to show (scrolling)
+        start_idx = max(0, selected_index - visible_items + 1)
+        end_idx = min(len(items), start_idx + visible_items)
+
+        # Draw visible menu items
+        for i in range(start_idx, end_idx):
+            item = items[i]
+            y_pos = y_start + (i - start_idx) * item_height
+
             # Highlight selected item
             if i == selected_index:
                 draw.rectangle([
-                    (2, y_offset),
-                    (self.width - 2, y_offset + config.MENU_ITEM_HEIGHT)
+                    (2, y_pos),
+                    (self.width - 2, y_pos + config.MENU_ITEM_HEIGHT)
                 ], outline=0, width=1)
 
             # Draw label
-            draw.text((5, y_offset + 2), item['label'], font=self.font_small, fill=0)
-            y_offset += config.MENU_ITEM_HEIGHT + 2
+            draw.text((5, y_pos + 2), item['label'], font=self.font_small, fill=0)
+
+        # Draw scroll indicators if needed
+        if start_idx > 0:
+            draw.text((self.width - 15, y_start), "^", font=self.font_small, fill=0)
+        if end_idx < len(items):
+            draw.text((self.width - 15, self.height - 12), "v", font=self.font_small, fill=0)
 
         return image
 
