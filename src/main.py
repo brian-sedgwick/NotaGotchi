@@ -274,10 +274,17 @@ class NotAGotchiApp:
             self.game_manager.on_game_ended = self._on_game_ended
             self.game_manager.on_opponent_forfeit = self._on_opponent_forfeit
 
-            # Connect to message handler context
-            context = self.social_coordinator.get_handler_context()
-            if context:
-                self.game_manager.setup_context_callbacks(context)
+            # Register game callbacks with social coordinator
+            # These will be attached to each handler context when messages arrive
+            self.social_coordinator.register_game_callbacks({
+                'on_game_invite_received': self.game_manager.handle_game_invite,
+                'on_game_accept_received': self.game_manager.handle_game_accept,
+                'on_game_decline_received': self.game_manager.handle_game_decline,
+                'on_game_cancel_received': self.game_manager.handle_game_cancel,
+                'on_game_move_received': self.game_manager._handle_opponent_move,
+                'on_game_forfeit_received': self.game_manager.handle_game_forfeit,
+                'on_game_sync_received': self.game_manager.handle_game_sync,
+            })
 
             print("✅ Game manager initialized")
             logger.info("Game manager initialized with RPS game")

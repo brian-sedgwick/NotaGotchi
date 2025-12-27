@@ -62,6 +62,9 @@ class SocialCoordinator:
         self.on_friend_request_rejected: Optional[Callable] = None
         self.on_message_received: Optional[Callable] = None
 
+        # Game callbacks (stored separately, attached to context on each message)
+        self._game_callbacks: Dict[str, Callable] = {}
+
         # Register WiFi callback
         self.wifi.register_callback(self._handle_incoming_message)
 
@@ -292,7 +295,7 @@ class SocialCoordinator:
         Returns:
             Configured MessageHandlerContext
         """
-        return MessageHandlerContext(
+        context = MessageHandlerContext(
             friend_manager=self.friends,
             message_manager=self.messages,
             wifi_manager=self.wifi,
@@ -302,6 +305,12 @@ class SocialCoordinator:
             on_friend_request_rejected=self.on_friend_request_rejected,
             on_message_received=self.on_message_received
         )
+
+        # Attach game callbacks to the context
+        for name, callback in self._game_callbacks.items():
+            setattr(context, name, callback)
+
+        return context
 
     def _handle_incoming_message(self, message_data: Dict, sender_ip: str):
         """
@@ -419,3 +428,20 @@ class SocialCoordinator:
             self.on_friend_request_rejected = on_request_rejected
         if on_message:
             self.on_message_received = on_message
+
+    def register_game_callbacks(self, callbacks: Dict[str, Callable]) -> None:
+        """
+        Register callbacks for game events.
+
+        These callbacks are stored and attached to each MessageHandlerContext
+        when messages arrive, ensuring game handlers can trigger UI updates.
+
+        Args:
+            callbacks: Dict mapping callback names to functions, e.g.:
+                {
+                    'on_game_invite_received': handler_func,
+                    'on_game_accept_received': handler_func,
+                    ...
+                }
+        """
+        self._game_callbacks.update(callbacks)
