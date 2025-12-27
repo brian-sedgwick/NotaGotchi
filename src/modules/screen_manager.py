@@ -405,24 +405,16 @@ class ScreenManager:
                 # "Back" selected
                 self.set_screen(config.ScreenState.MENU)
             else:
-                # Friend selected - open message menu
-                friend = self.friends_list[self.friends_list_index]
-                self.selected_friend = friend.get('device_name')
-                self.selected_friend_name = friend.get('pet_name', 'Friend')
-                self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
-
-        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
-            # Long press on friend: show options menu
-            # Long press on "Find Friends" or "Back": go back to menu
-            if self.friends_list_index < len(self.friends_list):
+                # Friend selected - show all friend options
                 friend = self.friends_list[self.friends_list_index]
                 self.selected_friend_for_options = friend.get('device_name')
                 self.selected_friend = friend.get('device_name')
                 self.selected_friend_name = friend.get('pet_name', 'Friend')
                 self.set_screen(config.ScreenState.FRIEND_OPTIONS)
-            else:
-                # Long press on "Find Friends" or "Back" - go back to menu
-                self.set_screen(config.ScreenState.MENU)
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            # Long press goes back to main menu
+            self.set_screen(config.ScreenState.MENU)
 
         return None
 
