@@ -318,7 +318,7 @@ class NotAGotchiApp:
             self._recover_from_offline()
         else:
             print("No existing pet found. Creating new pet...")
-            self.screen_manager.start_name_entry()
+            self.screen_manager.start_keyboard("name_entry", "Enter Name:")
             self.pet = None  # Will be created after name entry
 
     def _recover_from_offline(self):
@@ -493,6 +493,8 @@ class NotAGotchiApp:
                     # Handle string actions
                     elif action == "name_entry_complete":
                         self._complete_name_entry()
+                    elif action == "keyboard_name_complete":
+                        self._complete_keyboard_name_entry()
                     elif action == "delete_single_message":
                         self._handle_delete_single_message()
                     elif action == "delete_conversation":
@@ -510,6 +512,11 @@ class NotAGotchiApp:
         """Complete name entry and create/rename pet - delegates to ActionHandler"""
         if hasattr(self, 'action_handler'):
             self.action_handler.complete_name_entry()
+
+    def _complete_keyboard_name_entry(self):
+        """Complete keyboard name entry and create/rename pet - delegates to ActionHandler"""
+        if hasattr(self, 'action_handler'):
+            self.action_handler.complete_keyboard_name_entry()
 
     def _handle_send_message(self, data):
         """Handle sending a message to a friend - delegates to ActionHandler"""
@@ -600,6 +607,8 @@ class NotAGotchiApp:
             image = self._render_message_options_screen()
         elif self.screen_manager.is_friend_options():
             image = self._render_friend_options_screen()
+        elif self.screen_manager.is_keyboard():
+            image = self._render_keyboard_screen()
         else:
             return  # Unknown screen
 
@@ -927,6 +936,15 @@ class NotAGotchiApp:
         return self.display.draw_friend_options(
             friend_name,
             self.screen_manager.friend_options_index
+        )
+
+    def _render_keyboard_screen(self):
+        """Render full-screen keyboard for text input"""
+        state = self.screen_manager.get_keyboard_state()
+        return self.display.draw_keyboard(
+            state['buffer'],
+            state['selected_index'],
+            state['title']
         )
 
     def run(self):

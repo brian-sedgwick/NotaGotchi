@@ -281,10 +281,56 @@ LONG_PRESS_DURATION = 0.5      # 500ms for long press
 # ============================================================================
 # TEXT ENTRY CONFIGURATION
 # ============================================================================
-# Character pool for name entry
+# Character pool for name entry (legacy - kept for compatibility)
 TEXT_ENTRY_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
 MAX_NAME_LENGTH = 12
 MIN_NAME_LENGTH = 1
+
+# ============================================================================
+# KEYBOARD COMPONENT CONFIGURATION
+# ============================================================================
+# All keyboard keys in navigation order (45 total keys)
+KEYBOARD_KEYS = [
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',  # Row 0: Letters A-J
+    'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',  # Row 1: Letters K-T
+    'U', 'V', 'W', 'X', 'Y', 'Z', '.', ',', '!', '?',  # Row 2: Letters U-Z + punctuation
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  # Row 3: Digits
+    '-', 'SPACE', 'BACKSPACE', 'OK', 'CANCEL'          # Row 4: Controls
+]
+
+# Grid dimensions
+KEYBOARD_COLS = 10           # Columns for rows 0-3
+KEYBOARD_CONTROL_COLS = 5    # Columns for row 4 (control keys)
+KEYBOARD_ROWS = 5            # Total rows
+KEYBOARD_TOTAL_KEYS = 45     # Total number of keys
+
+# Key indices for special keys
+KEYBOARD_SPECIAL_KEYS = {
+    40: 'HYPHEN',     # Inserts hyphen character
+    41: 'SPACE',      # Inserts space character
+    42: 'BACKSPACE',  # Deletes last character
+    43: 'OK',         # Submits text
+    44: 'CANCEL'      # Discards and exits
+}
+
+# Display labels for control keys (what appears on screen)
+KEYBOARD_KEY_LABELS = {
+    40: '-',     # Hyphen key (same as character)
+    41: 'SPC',   # Space key
+    42: '<',     # Backspace key (simpler than unicode)
+    43: 'OK',    # Submit key
+    44: 'X'      # Cancel key (simpler than unicode)
+}
+
+# Keyboard layout dimensions (in pixels)
+KEYBOARD_KEY_WIDTH = 24      # Width of character keys (rows 0-3)
+KEYBOARD_KEY_HEIGHT = 14     # Height of character keys
+KEYBOARD_CONTROL_WIDTH = 48  # Width of control keys (row 4)
+KEYBOARD_CONTROL_HEIGHT = 16 # Height of control keys
+KEYBOARD_ROW_HEIGHT = 18     # Vertical spacing between rows
+KEYBOARD_START_X = 5         # Left margin
+KEYBOARD_START_Y = 22        # Top of keyboard grid (below text line)
+KEYBOARD_TEXT_LINE_HEIGHT = 16  # Height of text input line
 
 # Valid characters pattern for pet names (alphanumeric, spaces, dashes)
 import re
@@ -341,7 +387,8 @@ class ScreenState:
     """Enum for screen states"""
     HOME = "home"              # Status view
     MENU = "menu"              # Main menu (Care, Friends, Requests, Reset)
-    NAME_ENTRY = "name_entry"  # Text input for naming
+    NAME_ENTRY = "name_entry"  # Text input for naming (legacy)
+    KEYBOARD = "keyboard"      # Full-screen keyboard for text input
     SETTINGS = "settings"      # System settings
     CONFIRM = "confirm"        # Confirmation dialog
     # Care submenu

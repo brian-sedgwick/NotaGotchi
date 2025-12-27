@@ -65,6 +65,14 @@ class ScreenManager:
         self.friend_options_index = 0
         self.selected_friend_for_options = None  # Device name for friend operations
 
+        # Keyboard state
+        self.keyboard_buffer = ""           # Text being composed
+        self.keyboard_selected_index = 0    # Currently highlighted key (0-44)
+        self.keyboard_mode = None           # "name_entry" | "compose_message" | etc.
+        self.keyboard_max_length = 200      # Max chars allowed
+        self.keyboard_callback_data = {}    # Extra data for callbacks (e.g., friend_id)
+        self.keyboard_title = ""            # Title shown above text
+
         # Action callbacks
         self.action_callbacks: Dict[str, Callable] = {}
 
@@ -116,6 +124,9 @@ class ScreenManager:
             self.message_options_index = 0
         elif screen_state == config.ScreenState.FRIEND_OPTIONS:
             self.friend_options_index = 0
+        elif screen_state == config.ScreenState.KEYBOARD:
+            # Only reset index, preserve buffer and mode (set by start_keyboard)
+            self.keyboard_selected_index = 0
 
     def go_back(self):
         """Return to previous screen"""
@@ -201,6 +212,8 @@ class ScreenManager:
             return self._handle_message_options_input(event)
         elif self.current_screen == config.ScreenState.FRIEND_OPTIONS:
             return self._handle_friend_options_input(event)
+        elif self.current_screen == config.ScreenState.KEYBOARD:
+            return self._handle_keyboard_input(event)
 
         return None
 
@@ -460,7 +473,16 @@ class ScreenManager:
             elif action == 'msg_preset':
                 self.set_screen(config.ScreenState.PRESET_CATEGORY)
             elif action == 'msg_custom':
-                self.set_screen(config.ScreenState.TEXT_COMPOSE)
+                # Start keyboard for custom message composition
+                friend_name = self.selected_friend_name or "Friend"
+                self.start_keyboard(
+                    mode="compose_message",
+                    title=f"To: {friend_name}",
+                    callback_data={
+                        'to_device': self.selected_friend,
+                        'to_name': self.selected_friend_name
+                    }
+                )
 
         elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
             self.set_screen(config.ScreenState.FRIENDS_LIST)
@@ -697,6 +719,98 @@ class ScreenManager:
 
         return None
 
+    def _handle_keyboard_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on keyboard screen"""
+        total_keys = config.KEYBOARD_TOTAL_KEYS
+
+        if event.type == InputEvent.TYPE_ROTATE_CW:
+            # Move to next key
+            self.keyboard_selected_index = (self.keyboard_selected_index + 1) % total_keys
+
+        elif event.type == InputEvent.TYPE_ROTATE_CCW:
+            # Move to previous key
+            self.keyboard_selected_index = (self.keyboard_selected_index - 1) % total_keys
+
+        elif event.type == InputEvent.TYPE_BUTTON_PRESS:
+            # Execute action for selected key
+            selected_key = config.KEYBOARD_KEYS[self.keyboard_selected_index]
+            special_action = config.KEYBOARD_SPECIAL_KEYS.get(self.keyboard_selected_index)
+
+            if special_action == 'OK':
+                # Submit the text
+                return self._keyboard_submit()
+
+            elif special_action == 'CANCEL':
+                # Cancel and discard
+                return self._keyboard_cancel()
+
+            elif special_action == 'BACKSPACE':
+                # Delete last character
+                if len(self.keyboard_buffer) > 0:
+                    self.keyboard_buffer = self.keyboard_buffer[:-1]
+                    print(f"Keyboard backspace: '{self.keyboard_buffer}'")
+
+            elif special_action == 'SPACE':
+                # Add space (if not at max length and not leading space)
+                if len(self.keyboard_buffer) < self.keyboard_max_length:
+                    if len(self.keyboard_buffer) > 0 or self.keyboard_mode != "name_entry":
+                        self.keyboard_buffer += ' '
+                        print(f"Keyboard space: '{self.keyboard_buffer}'")
+
+            elif special_action == 'HYPHEN':
+                # Add hyphen
+                if len(self.keyboard_buffer) < self.keyboard_max_length:
+                    self.keyboard_buffer += '-'
+                    print(f"Keyboard hyphen: '{self.keyboard_buffer}'")
+
+            else:
+                # Regular character (letter, digit, punctuation)
+                if len(self.keyboard_buffer) < self.keyboard_max_length:
+                    self.keyboard_buffer += selected_key
+                    print(f"Keyboard char: '{self.keyboard_buffer}'")
+
+        return None
+
+    def _keyboard_submit(self) -> Optional[str]:
+        """Handle keyboard OK/submit action"""
+        if self.keyboard_mode == "name_entry":
+            # Validate name
+            if len(self.keyboard_buffer.strip()) >= config.MIN_NAME_LENGTH:
+                return "keyboard_name_complete"
+            else:
+                # Name too short, don't submit
+                print(f"Name too short: '{self.keyboard_buffer}'")
+                return None
+
+        elif self.keyboard_mode == "compose_message":
+            # Send message
+            if len(self.keyboard_buffer.strip()) > 0:
+                return ("send_message", {
+                    "type": "custom",
+                    "content": self.keyboard_buffer.strip(),
+                    "to_device": self.keyboard_callback_data.get('to_device'),
+                    "to_name": self.keyboard_callback_data.get('to_name')
+                })
+            else:
+                # Empty message, cancel instead
+                return self._keyboard_cancel()
+
+        return None
+
+    def _keyboard_cancel(self) -> Optional[str]:
+        """Handle keyboard cancel action"""
+        self.keyboard_buffer = ""
+        self.keyboard_selected_index = 0
+
+        if self.keyboard_mode == "name_entry":
+            # For name entry, go back (no valid name entered)
+            self.go_back()
+        elif self.keyboard_mode == "compose_message":
+            # For compose, return to message type menu
+            self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
+
+        return None
+
     def set_inbox_messages(self, messages: list):
         """Set inbox messages for display"""
         self.inbox_messages = messages
@@ -718,7 +832,7 @@ class ScreenManager:
         self.set_screen(config.ScreenState.CONFIRM)
 
     def start_name_entry(self):
-        """Start name entry screen"""
+        """Start name entry screen (legacy - uses old dial interface)"""
         self.text_entry_buffer = ""
         self.text_entry_char_index = 0
         self.set_screen(config.ScreenState.NAME_ENTRY)
@@ -726,6 +840,53 @@ class ScreenManager:
     def get_entered_name(self) -> str:
         """Get the name entered in name entry screen"""
         return self.text_entry_buffer.strip()
+
+    def start_keyboard(self, mode: str, title: str = "", max_length: int = None,
+                       callback_data: Dict = None):
+        """
+        Start the keyboard for text input
+
+        Args:
+            mode: "name_entry" | "compose_message" | etc.
+            title: Title to display (e.g., "Enter Name:" or "To: Friend")
+            max_length: Maximum characters allowed (defaults based on mode)
+            callback_data: Extra data for callbacks (e.g., friend device/name)
+        """
+        self.keyboard_buffer = ""
+        self.keyboard_selected_index = 0
+        self.keyboard_mode = mode
+        self.keyboard_title = title
+        self.keyboard_callback_data = callback_data or {}
+
+        # Set max length based on mode if not specified
+        if max_length is not None:
+            self.keyboard_max_length = max_length
+        elif mode == "name_entry":
+            self.keyboard_max_length = config.MAX_NAME_LENGTH
+        elif mode == "compose_message":
+            self.keyboard_max_length = config.MESSAGE_MAX_LENGTH
+        else:
+            self.keyboard_max_length = 200
+
+        self.set_screen(config.ScreenState.KEYBOARD)
+
+    def get_keyboard_buffer(self) -> str:
+        """Get the text entered in keyboard"""
+        return self.keyboard_buffer.strip()
+
+    def get_keyboard_state(self) -> Dict[str, Any]:
+        """Get current keyboard state for rendering"""
+        return {
+            'buffer': self.keyboard_buffer,
+            'selected_index': self.keyboard_selected_index,
+            'mode': self.keyboard_mode,
+            'title': self.keyboard_title,
+            'max_length': self.keyboard_max_length
+        }
+
+    def is_keyboard(self) -> bool:
+        """Check if on keyboard screen"""
+        return self.current_screen == config.ScreenState.KEYBOARD
 
     def get_menu_state(self) -> Dict[str, Any]:
         """Get current menu state for rendering"""

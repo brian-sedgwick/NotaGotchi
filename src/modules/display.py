@@ -411,6 +411,134 @@ class DisplayManager:
 
         return image
 
+    def draw_keyboard(self, buffer: str, selected_index: int,
+                      title: str = "") -> Image.Image:
+        """
+        Draw full-screen keyboard for text input
+
+        Args:
+            buffer: Text entered so far
+            selected_index: Index of currently selected key (0-44)
+            title: Optional title to display (e.g., "Enter Name:" or "To: Friend")
+
+        Returns:
+            PIL Image of the keyboard screen
+        """
+        image, draw = self._create_canvas()
+
+        # 1. Draw text input line with cursor
+        display_text = self._truncate_with_ellipsis(draw, buffer, max_width=240)
+        draw.text((5, 2), display_text + "_", fill=0, font=self.font_medium)
+        draw.line([(0, config.KEYBOARD_TEXT_LINE_HEIGHT + 2),
+                   (self.width, config.KEYBOARD_TEXT_LINE_HEIGHT + 2)], fill=0)
+
+        # 2. Draw rows 0-3 (10 keys each)
+        for i in range(40):  # First 40 keys (rows 0-3)
+            row = i // config.KEYBOARD_COLS
+            col = i % config.KEYBOARD_COLS
+
+            x = config.KEYBOARD_START_X + col * config.KEYBOARD_KEY_WIDTH
+            y = config.KEYBOARD_START_Y + row * config.KEYBOARD_ROW_HEIGHT
+
+            key_label = config.KEYBOARD_KEYS[i]
+            self._draw_keyboard_key(draw, x, y,
+                                   config.KEYBOARD_KEY_WIDTH - 2,
+                                   config.KEYBOARD_KEY_HEIGHT,
+                                   key_label,
+                                   selected=(i == selected_index))
+
+        # 3. Draw row 4 (5 control keys, wider)
+        control_y = config.KEYBOARD_START_Y + 4 * config.KEYBOARD_ROW_HEIGHT + 4
+
+        for i in range(config.KEYBOARD_CONTROL_COLS):
+            idx = 40 + i
+            x = config.KEYBOARD_START_X + i * config.KEYBOARD_CONTROL_WIDTH
+
+            # Get display label for control keys
+            key_label = config.KEYBOARD_KEY_LABELS.get(idx, config.KEYBOARD_KEYS[idx])
+            self._draw_keyboard_key(draw, x, control_y,
+                                   config.KEYBOARD_CONTROL_WIDTH - 4,
+                                   config.KEYBOARD_CONTROL_HEIGHT,
+                                   key_label,
+                                   selected=(idx == selected_index))
+
+        return image
+
+    def _draw_keyboard_key(self, draw: ImageDraw.Draw, x: int, y: int,
+                           width: int, height: int, label: str,
+                           selected: bool = False):
+        """
+        Draw a single keyboard key
+
+        Args:
+            draw: ImageDraw object
+            x: X position
+            y: Y position
+            width: Key width
+            height: Key height
+            label: Text to display on key
+            selected: Whether this key is selected (inverted colors)
+        """
+        if selected:
+            # Draw filled rectangle (black background)
+            draw.rectangle([(x, y), (x + width, y + height)], fill=0)
+            # Draw text in white (inverted)
+            # Center the text in the key
+            bbox = draw.textbbox((0, 0), label, font=self.font_small)
+            text_width = bbox[2] - bbox[0]
+            text_x = x + (width - text_width) // 2
+            draw.text((text_x, y + 2), label, fill=1, font=self.font_small)
+        else:
+            # Draw text in black (normal)
+            bbox = draw.textbbox((0, 0), label, font=self.font_small)
+            text_width = bbox[2] - bbox[0]
+            text_x = x + (width - text_width) // 2
+            draw.text((text_x, y + 2), label, fill=0, font=self.font_small)
+
+    def _truncate_with_ellipsis(self, draw: ImageDraw.Draw, buffer: str,
+                                 max_width: int = 240) -> str:
+        """
+        Return buffer text, with ellipsis at start if too long.
+        Shows the end of the message so user can see what they're typing.
+
+        Args:
+            draw: ImageDraw object (used for measuring text)
+            buffer: Text to potentially truncate
+            max_width: Maximum width in pixels
+
+        Returns:
+            Original buffer or truncated version with "..." prefix
+        """
+        if not buffer:
+            return ""
+
+        # Measure full text width
+        bbox = draw.textbbox((0, 0), buffer, font=self.font_medium)
+        text_width = bbox[2] - bbox[0]
+
+        if text_width <= max_width:
+            return buffer
+
+        # Need ellipsis - find how many trailing chars fit
+        ellipsis = "..."
+        ellipsis_bbox = draw.textbbox((0, 0), ellipsis, font=self.font_medium)
+        ellipsis_width = ellipsis_bbox[2] - ellipsis_bbox[0]
+        available = max_width - ellipsis_width
+
+        # Iterate from end to find max chars that fit
+        for i in range(1, len(buffer) + 1):
+            test_text = buffer[-i:]
+            test_bbox = draw.textbbox((0, 0), test_text, font=self.font_medium)
+            test_width = test_bbox[2] - test_bbox[0]
+            if test_width > available:
+                # Previous iteration was the max that fits
+                if i > 1:
+                    return ellipsis + buffer[-(i-1):]
+                else:
+                    return ellipsis
+
+        return ellipsis + buffer
+
     def draw_confirmation(self, message: str, selected: bool = True) -> Image.Image:
         """
         Draw a confirmation dialog

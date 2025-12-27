@@ -171,8 +171,8 @@ class ActionHandler:
             print("Resetting pet...")
             self._get_db().log_event(pet.id, "reset", notes="Pet was reset")
             self._set_action_occurred(True)
-            # Start name entry for new pet
-            screen_manager.start_name_entry()
+            # Start keyboard for new pet name entry
+            screen_manager.start_keyboard("name_entry", "Enter Name:")
 
         screen_manager.show_confirmation(
             "Reset pet? All progress will be lost!",
@@ -261,6 +261,56 @@ class ActionHandler:
             is_valid, error = config.validate_pet_name(name)
             if not is_valid:
                 print(f"⚠️  Invalid pet name: {error}")
+                name = None
+
+        if not name:
+            name = config.DEFAULT_PET_NAME
+            print(f"Using default pet name: {name}")
+
+        pet = self._get_pet()
+        if pet is None:
+            # Create new pet via callback
+            self._create_new_pet(name)
+            print(f"Created new pet: {name}")
+
+            # Update WiFi device name with new pet name
+            wifi_manager = self._get_wifi_manager()
+            social_coordinator = self._get_social_coordinator()
+            new_device_name = f"{name}_{config.DEVICE_ID_PREFIX}"
+
+            if wifi_manager:
+                wifi_manager.update_device_name(new_device_name)
+            if social_coordinator:
+                social_coordinator.own_pet_name = name
+        else:
+            # Rename existing pet
+            pet.name = name
+            self._save_pet()
+            print(f"Renamed pet to: {name}")
+
+        self._set_action_occurred(True)
+        screen_manager.go_home()
+        return True
+
+    def complete_keyboard_name_entry(self) -> bool:
+        """
+        Complete keyboard name entry and create/rename pet.
+
+        Gets the name from keyboard buffer, validates it, and either creates
+        a new pet or renames an existing one.
+
+        Returns:
+            True if successful
+        """
+        screen_manager = self._get_screen_manager()
+        name = screen_manager.get_keyboard_buffer()
+
+        # Validate the name
+        if name:
+            name = name.strip()
+            is_valid, error = config.validate_pet_name(name)
+            if not is_valid:
+                print(f"Invalid pet name: {error}")
                 name = None
 
         if not name:
