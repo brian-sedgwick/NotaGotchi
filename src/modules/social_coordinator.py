@@ -82,6 +82,24 @@ class SocialCoordinator:
         """
         self._message_registry.register(handler)
 
+    def get_message_registry(self) -> MessageHandlerRegistry:
+        """
+        Get the message handler registry for external registration.
+
+        Returns:
+            The MessageHandlerRegistry instance
+        """
+        return self._message_registry
+
+    def get_handler_context(self) -> MessageHandlerContext:
+        """
+        Get a handler context for setting up external callbacks.
+
+        Returns:
+            A MessageHandlerContext instance
+        """
+        return self._create_handler_context()
+
     # ========================================================================
     # FRIEND REQUEST PROTOCOL
     # ========================================================================

@@ -34,6 +34,7 @@ from modules.friend_manager import FriendManager
 from modules.messaging import MessageManager
 from modules.social_coordinator import SocialCoordinator
 from modules.action_handler import ActionHandler
+from modules.games import GameManager, RockPaperScissors, register_game_handlers
 
 
 class NotAGotchiApp:
@@ -93,6 +94,7 @@ class NotAGotchiApp:
         self.friend_manager = None
         self.message_manager = None
         self.social_coordinator = None
+        self.game_manager = None
 
         # Game state
         self.pet = None
@@ -120,6 +122,9 @@ class NotAGotchiApp:
 
         # Initialize social features (WiFi requires pet to be loaded)
         self._initialize_social_features()
+
+        # Initialize game manager (requires social features)
+        self._initialize_game_manager()
 
         # Create ActionHandler with all dependencies
         self._create_action_handler()
@@ -228,6 +233,129 @@ class NotAGotchiApp:
             self.friend_manager = None
             self.message_manager = None
             self.social_coordinator = None
+
+    def _initialize_game_manager(self):
+        """Initialize game manager for multiplayer games"""
+        if not self.social_coordinator or not self.wifi_manager or not self.friend_manager:
+            logger.debug("Skipping game manager (social features not initialized)")
+            return
+
+        try:
+            # Get device and pet names
+            if self.pet:
+                device_name = f"{self.pet.name}_{config.DEVICE_ID_PREFIX}"
+                pet_name = self.pet.name
+            else:
+                device_name = f"NotAGotchi_{config.DEVICE_ID_PREFIX}"
+                pet_name = "NotAGotchi"
+
+            # Get message registry from social coordinator
+            message_registry = self.social_coordinator.get_message_registry()
+
+            # Create game manager
+            self.game_manager = GameManager(
+                wifi_manager=self.wifi_manager,
+                friend_manager=self.friend_manager,
+                db_manager=self.db,
+                own_device_name=device_name,
+                own_pet_name=pet_name,
+                message_registry=message_registry
+            )
+
+            # Register game implementations
+            self.game_manager.register_game_class('rock_paper_scissors', RockPaperScissors)
+
+            # Set up game callbacks for UI updates
+            self.game_manager.on_invite_received = self._on_game_invite_received
+            self.game_manager.on_invite_accepted = self._on_game_invite_accepted
+            self.game_manager.on_invite_declined = self._on_game_invite_declined
+            self.game_manager.on_game_started = self._on_game_started
+            self.game_manager.on_opponent_move = self._on_opponent_move
+            self.game_manager.on_game_ended = self._on_game_ended
+            self.game_manager.on_opponent_forfeit = self._on_opponent_forfeit
+
+            # Connect to message handler context
+            context = self.social_coordinator.get_handler_context()
+            if context:
+                self.game_manager.setup_context_callbacks(context)
+
+            print("✅ Game manager initialized")
+            logger.info("Game manager initialized with RPS game")
+
+        except Exception as e:
+            print(f"⚠️  Failed to initialize game manager: {e}")
+            logger.error(f"Game manager init failed: {e}", exc_info=True)
+            self.game_manager = None
+
+    def _on_game_invite_received(self, invite_data):
+        """Handle incoming game invite - show confirmation dialog"""
+        from_name = invite_data.get('from_pet_name', 'Unknown')
+        game_type = invite_data.get('game_type')
+        session_id = invite_data.get('game_session_id')
+
+        print(f"🎮 Game invite from {from_name}: {game_type}")
+
+        # Store pending invite for UI
+        self.screen_manager.set_pending_game_invite(invite_data)
+
+        def accept_invite():
+            if self.game_manager:
+                self.game_manager.accept_invite(session_id)
+            self.screen_manager.clear_pending_game_invite()
+            self.action_occurred = True
+
+        def decline_invite():
+            if self.game_manager:
+                self.game_manager.decline_invite(session_id)
+            self.screen_manager.clear_pending_game_invite()
+            self.action_occurred = True
+
+        # Show confirmation dialog
+        game_config = config.GAME_TYPES.get(game_type, {})
+        game_name = game_config.get('name', game_type)
+        self.screen_manager.show_confirmation(
+            f"{from_name}: {game_name}?",
+            accept_invite,
+            decline_invite
+        )
+
+    def _on_game_invite_accepted(self, session):
+        """Handle our invite being accepted"""
+        print(f"✅ {session.opponent_pet_name} accepted the game!")
+        self.screen_manager.set_game_session(session)
+        self.screen_manager.set_screen(config.ScreenState.GAME_ACTIVE)
+        self.action_occurred = True
+
+    def _on_game_invite_declined(self, data):
+        """Handle our invite being declined"""
+        from_name = data.get('from_pet_name', 'Unknown')
+        print(f"😔 {from_name} declined the game invite")
+        self.screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
+        self.action_occurred = True
+
+    def _on_game_started(self, session):
+        """Handle game starting"""
+        print(f"🎮 Game started vs {session.opponent_pet_name}")
+        self.screen_manager.set_game_session(session)
+        self.screen_manager.set_screen(config.ScreenState.GAME_ACTIVE)
+        self.action_occurred = True
+
+    def _on_opponent_move(self, move_data):
+        """Handle opponent making a move"""
+        print(f"🎯 Opponent moved: {move_data}")
+        self.action_occurred = True
+
+    def _on_game_ended(self, session, result):
+        """Handle game ending"""
+        print(f"🏁 Game ended: {result}")
+        self.screen_manager.set_screen(config.ScreenState.GAME_RESULT)
+        self.action_occurred = True
+
+    def _on_opponent_forfeit(self, data):
+        """Handle opponent forfeiting"""
+        from_name = data.get('from_pet_name', 'Unknown')
+        print(f"🏳️ {from_name} forfeited!")
+        self.action_occurred = True
 
     def _register_actions(self):
         """Register callbacks for menu actions"""
@@ -481,7 +609,7 @@ class NotAGotchiApp:
                 action = self.screen_manager.handle_input(event)
 
                 if action:
-                    # Handle tuple actions (social features)
+                    # Handle tuple actions (social features and games)
                     if isinstance(action, tuple):
                         action_type, data = action
                         if action_type == "send_message":
@@ -490,6 +618,10 @@ class NotAGotchiApp:
                             self._handle_send_friend_request(data)
                         elif action_type == "handle_friend_request":
                             self._handle_friend_request_action(data)
+                        elif action_type == "send_game_invite":
+                            self._handle_send_game_invite(data)
+                        elif action_type == "make_game_move":
+                            self._handle_make_game_move(data)
                     # Handle string actions
                     elif action == "name_entry_complete":
                         self._complete_name_entry()
@@ -504,6 +636,10 @@ class NotAGotchiApp:
                     elif action == "message_friend":
                         # This is handled by screen navigation in screen_manager
                         pass
+                    elif action == "cancel_game_invite":
+                        self._handle_cancel_game_invite()
+                    elif action == "forfeit_game":
+                        self._handle_forfeit_game()
                     else:
                         # Trigger registered action
                         self.screen_manager.trigger_action(action)
@@ -547,6 +683,58 @@ class NotAGotchiApp:
         """Handle removing a friend - delegates to ActionHandler"""
         if hasattr(self, 'action_handler'):
             self.action_handler.handle_remove_friend()
+
+    def _handle_send_game_invite(self, data):
+        """Handle sending a game invite to a friend"""
+        if not self.game_manager:
+            print("⚠️ Game manager not available")
+            return
+
+        game_type = data.get('game_type')
+        opponent_device = data.get('opponent_device')
+        opponent_name = data.get('opponent_name')
+
+        print(f"🎮 Sending {game_type} invite to {opponent_name}")
+
+        session_id = self.game_manager.send_invite(opponent_device, game_type)
+        if session_id:
+            # Store session and switch to waiting screen
+            self.screen_manager.game_opponent_name = opponent_name
+            self.screen_manager.game_opponent_device = opponent_device
+            pending = self.game_manager.get_pending_outgoing()
+            if pending:
+                self.screen_manager.current_game_session = pending
+            self.screen_manager.set_screen(config.ScreenState.GAME_WAITING)
+            self.action_occurred = True
+        else:
+            print("❌ Failed to send game invite")
+
+    def _handle_make_game_move(self, data):
+        """Handle making a move in the active game"""
+        if not self.game_manager:
+            return
+
+        move_data = data.get('move_data', {})
+        success = self.game_manager.make_move(move_data)
+
+        if success:
+            self.action_occurred = True
+
+    def _handle_cancel_game_invite(self):
+        """Handle cancelling a pending game invite"""
+        if self.game_manager:
+            self.game_manager.cancel_pending_invite()
+        self.screen_manager.current_game_session = None
+        self.screen_manager.set_screen(config.ScreenState.GAME_SELECT)
+        self.action_occurred = True
+
+    def _handle_forfeit_game(self):
+        """Handle forfeiting the current game"""
+        if self.game_manager:
+            self.game_manager.forfeit()
+        self.screen_manager.current_game_session = None
+        self.screen_manager.set_screen(config.ScreenState.FRIENDS_LIST)
+        self.action_occurred = True
 
     def _render_display(self):
         """Render current screen to display"""
@@ -609,6 +797,14 @@ class NotAGotchiApp:
             image = self._render_friend_options_screen()
         elif self.screen_manager.is_keyboard():
             image = self._render_keyboard_screen()
+        elif self.screen_manager.is_game_select():
+            image = self._render_game_select_screen()
+        elif self.screen_manager.is_game_waiting():
+            image = self._render_game_waiting_screen()
+        elif self.screen_manager.is_game_active():
+            image = self._render_game_active_screen()
+        elif self.screen_manager.is_game_result():
+            image = self._render_game_result_screen()
         else:
             return  # Unknown screen
 
@@ -945,6 +1141,51 @@ class NotAGotchiApp:
             state['buffer'],
             state['selected_index'],
             state['title']
+        )
+
+    def _render_game_select_screen(self):
+        """Render game selection screen"""
+        state = self.screen_manager.get_game_select_state()
+        return self.display.draw_game_select(
+            state['items'],
+            state['selected_index'],
+            state['opponent_name'] or "Friend"
+        )
+
+    def _render_game_waiting_screen(self):
+        """Render game waiting screen"""
+        state = self.screen_manager.get_game_waiting_state()
+        session = state.get('session')
+        game_type = session.game_type if session else 'unknown'
+        return self.display.draw_game_waiting(
+            state['opponent_name'] or "Friend",
+            game_type
+        )
+
+    def _render_game_active_screen(self):
+        """Render active game screen"""
+        state = self.screen_manager.get_game_active_state()
+        session = state.get('session')
+        display_state = state.get('display_state', {})
+
+        # For now, only RPS is implemented
+        return self.display.draw_game_rps(
+            display_state,
+            state['choice_index'],
+            state['opponent_name'] or "Friend"
+        )
+
+    def _render_game_result_screen(self):
+        """Render game result screen"""
+        state = self.screen_manager.get_game_result_state()
+        session = state.get('session')
+        display_state = state.get('display_state', {})
+        game_type = session.game_type if session else 'unknown'
+
+        return self.display.draw_game_result(
+            display_state,
+            state['opponent_name'] or "Friend",
+            game_type
         )
 
     def run(self):

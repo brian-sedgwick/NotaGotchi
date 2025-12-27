@@ -410,6 +410,11 @@ class ScreenState:
     # Options menus
     MESSAGE_OPTIONS = "message_options"      # Message options (delete msg/conversation)
     FRIEND_OPTIONS = "friend_options"        # Friend options (send msg/remove friend)
+    # Game screens
+    GAME_SELECT = "game_select"              # Choose which game to play
+    GAME_WAITING = "game_waiting"            # Waiting for opponent to accept invite
+    GAME_ACTIVE = "game_active"              # Playing the game
+    GAME_RESULT = "game_result"              # Win/lose/draw display
 
 # ============================================================================
 # MENU STRUCTURE
@@ -451,6 +456,7 @@ MESSAGE_OPTIONS_MENU = [
 # Friend options menu (friend management)
 FRIEND_OPTIONS_MENU = [
     {"label": "Send Message", "action": "message_friend"},
+    {"label": "Play Game", "action": "play_game"},
     {"label": "Remove Friend", "action": "remove_friend"},
     {"label": "Back", "action": "back"}
 ]
@@ -545,3 +551,52 @@ FRIEND_POLL_INTERVAL = 15.0          # Seconds between presence checks
 FRIEND_CHECK_TIMEOUT = 2.0           # Seconds to wait for each device (no longer used)
 FRIEND_MAX_PARALLEL_CHECKS = 10      # Max concurrent checks (no longer used)
 FRIEND_ONLINE_THRESHOLD = 60         # Seconds (1 min) grace period for discovery failures
+
+# ============================================================================
+# GAME CONFIGURATION
+# ============================================================================
+GAME_INVITE_TIMEOUT = 30.0           # Seconds before game invite expires
+
+# Game type definitions
+GAME_TYPES = {
+    'rock_paper_scissors': {
+        'name': 'Rock Paper Scissors',
+        'turn_timeout': None,        # Simultaneous reveal, no turn timeout
+        'min_players': 2,
+        'max_players': 2
+    },
+    'tic_tac_toe': {
+        'name': 'Tic-Tac-Toe',
+        'turn_timeout': None,        # No time limit (e-ink friendly)
+        'min_players': 2,
+        'max_players': 2
+    },
+    'connect_four': {
+        'name': 'Connect Four',
+        'turn_timeout': None,
+        'min_players': 2,
+        'max_players': 2
+    },
+    'battleship': {
+        'name': 'Battleship',
+        'turn_timeout': None,
+        'min_players': 2,
+        'max_players': 2
+    },
+    'hangman': {
+        'name': 'Hangman',
+        'turn_timeout': None,
+        'min_players': 2,
+        'max_players': 2
+    }
+}
+
+# Game menu for friend options
+GAME_MENU = [
+    {"label": "Rock Paper Scissors", "action": "game_rock_paper_scissors"},
+    {"label": "Tic-Tac-Toe", "action": "game_tic_tac_toe"},
+    {"label": "Connect Four", "action": "game_connect_four"},
+    {"label": "Battleship", "action": "game_battleship"},
+    {"label": "Hangman", "action": "game_hangman"},
+    {"label": "Back", "action": "back"}
+]

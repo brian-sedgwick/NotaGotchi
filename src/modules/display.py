@@ -1228,6 +1228,299 @@ class DisplayManager:
 
         return image
 
+    # =========================================================================
+    # GAME SCREENS
+    # =========================================================================
+
+    def draw_game_select(self, items: list, selected_index: int,
+                         opponent_name: str) -> Image.Image:
+        """
+        Draw game selection screen
+
+        Args:
+            items: List of game menu items
+            selected_index: Currently selected game index
+            opponent_name: Name of opponent to play against
+
+        Returns:
+            PIL Image of game select screen
+        """
+        image, draw = self._create_canvas()
+
+        # Draw header with opponent name
+        title = f"Play with: {opponent_name}"[:25]
+        self._draw_header(draw, title, "")
+
+        # Draw menu items
+        y_offset = config.HEADER_LINE_Y + 5
+
+        for i, item in enumerate(items):
+            # Highlight selected item
+            if i == selected_index:
+                draw.rectangle([
+                    (2, y_offset),
+                    (self.width - 2, y_offset + config.MENU_ITEM_HEIGHT)
+                ], outline=0, width=1)
+
+            # Draw label
+            draw.text((5, y_offset + 2), item['label'], font=self.font_small, fill=0)
+            y_offset += config.MENU_ITEM_HEIGHT + 2
+
+        return image
+
+    def draw_game_waiting(self, opponent_name: str, game_type: str) -> Image.Image:
+        """
+        Draw game waiting screen (waiting for opponent to accept)
+
+        Args:
+            opponent_name: Name of opponent
+            game_type: Type of game being proposed
+
+        Returns:
+            PIL Image of waiting screen
+        """
+        image, draw = self._create_canvas()
+
+        # Get game display name
+        game_config = config.GAME_TYPES.get(game_type, {})
+        game_name = game_config.get('name', game_type.replace('_', ' ').title())
+
+        # Header
+        draw.rectangle([(0, 0), (self.width, config.HEADER_HEIGHT)], fill=0)
+        draw.text((2, 1), game_name, fill=1, font=self.font_small)
+
+        # Centered waiting message
+        msg = f"Waiting for {opponent_name}..."
+        bbox = draw.textbbox((0, 0), msg, font=self.font_medium)
+        text_width = bbox[2] - bbox[0]
+        text_x = (self.width - text_width) // 2
+        draw.text((text_x, 45), msg, fill=0, font=self.font_medium)
+
+        # Animated dots indicator (static for now)
+        dots = "..."
+        bbox = draw.textbbox((0, 0), dots, font=self.font_large)
+        dot_width = bbox[2] - bbox[0]
+        dot_x = (self.width - dot_width) // 2
+        draw.text((dot_x, 65), dots, fill=0, font=self.font_large)
+
+        # Cancel hint
+        hint = "Press to cancel"
+        bbox = draw.textbbox((0, 0), hint, font=self.font_small)
+        hint_width = bbox[2] - bbox[0]
+        hint_x = (self.width - hint_width) // 2
+        draw.text((hint_x, self.height - 15), hint, fill=0, font=self.font_small)
+
+        return image
+
+    def draw_game_rps(self, display_state: dict, choice_index: int,
+                      opponent_name: str) -> Image.Image:
+        """
+        Draw Rock-Paper-Scissors game screen
+
+        Args:
+            display_state: Game display state from RPS.get_display_state()
+            choice_index: Currently selected choice (0=rock, 1=paper, 2=scissors)
+            opponent_name: Opponent's name
+
+        Returns:
+            PIL Image of RPS game screen
+        """
+        image, draw = self._create_canvas()
+
+        # Header with turn status
+        if display_state.get('waiting_for_opponent'):
+            status = "Waiting..."
+        elif display_state.get('waiting_for_me'):
+            status = "Your turn!"
+        else:
+            status = "Round over"
+
+        # Draw header
+        draw.rectangle([(0, 0), (self.width, config.HEADER_HEIGHT)], fill=0)
+        header_text = f"vs {opponent_name} - {status}"[:35]
+        draw.text((2, 1), header_text, fill=1, font=self.font_small)
+
+        choices = ['rock', 'paper', 'scissors']
+        symbols = {'rock': 'R', 'paper': 'P', 'scissors': 'S'}
+        labels = {'rock': 'Rock', 'paper': 'Paper', 'scissors': 'Scissors'}
+
+        if display_state.get('round_complete'):
+            # Show result
+            my_choice = display_state.get('my_choice')
+            opp_choice = display_state.get('opponent_choice')
+            result = display_state.get('result')
+
+            # Result message
+            if result == 'win':
+                result_msg = "You Win!"
+            elif result == 'lose':
+                result_msg = "You Lose!"
+            else:
+                result_msg = "Draw!"
+
+            bbox = draw.textbbox((0, 0), result_msg, font=self.font_large)
+            msg_width = bbox[2] - bbox[0]
+            draw.text(((self.width - msg_width) // 2, 25), result_msg, fill=0, font=self.font_large)
+
+            # Show choices
+            my_label = f"You: {labels.get(my_choice, '?')}"
+            opp_label = f"{opponent_name}: {labels.get(opp_choice, '?')}"
+
+            draw.text((20, 55), my_label, fill=0, font=self.font_medium)
+            draw.text((20, 75), opp_label, fill=0, font=self.font_medium)
+
+            # Hint
+            draw.text((20, self.height - 15), "Press to continue", fill=0, font=self.font_small)
+
+        elif display_state.get('waiting_for_opponent'):
+            # We chose, waiting for opponent
+            my_choice = display_state.get('my_choice')
+            msg = f"You chose: {labels.get(my_choice, '?')}"
+            bbox = draw.textbbox((0, 0), msg, font=self.font_medium)
+            draw.text(((self.width - bbox[2] + bbox[0]) // 2, 40), msg, fill=0, font=self.font_medium)
+
+            wait_msg = "Waiting for opponent..."
+            bbox = draw.textbbox((0, 0), wait_msg, font=self.font_small)
+            draw.text(((self.width - bbox[2] + bbox[0]) // 2, 70), wait_msg, fill=0, font=self.font_small)
+
+        else:
+            # Selection phase
+            msg = "Make your choice!"
+            bbox = draw.textbbox((0, 0), msg, font=self.font_medium)
+            draw.text(((self.width - bbox[2] + bbox[0]) // 2, 20), msg, fill=0, font=self.font_medium)
+
+            # Draw choices horizontally
+            choice_width = 70
+            start_x = (self.width - 3 * choice_width) // 2
+
+            for i, choice in enumerate(choices):
+                x = start_x + i * choice_width
+                y = 45
+
+                # Highlight selected
+                if i == choice_index:
+                    draw.rectangle([(x, y), (x + 60, y + 50)], outline=0, width=2)
+
+                # Symbol
+                symbol = f"({symbols[choice]})"
+                bbox = draw.textbbox((0, 0), symbol, font=self.font_large)
+                sym_x = x + (60 - bbox[2] + bbox[0]) // 2
+                draw.text((sym_x, y + 5), symbol, fill=0, font=self.font_large)
+
+                # Label
+                label = labels[choice]
+                bbox = draw.textbbox((0, 0), label, font=self.font_small)
+                lbl_x = x + (60 - bbox[2] + bbox[0]) // 2
+                draw.text((lbl_x, y + 35), label, fill=0, font=self.font_small)
+
+            # Hint
+            draw.text((5, self.height - 15), "Press:select  Hold:forfeit", fill=0, font=self.font_small)
+
+        return image
+
+    def draw_game_result(self, display_state: dict, opponent_name: str,
+                         game_type: str) -> Image.Image:
+        """
+        Draw game result screen
+
+        Args:
+            display_state: Game display state
+            opponent_name: Opponent's name
+            game_type: Type of game
+
+        Returns:
+            PIL Image of result screen
+        """
+        image, draw = self._create_canvas()
+
+        # Get game display name
+        game_config = config.GAME_TYPES.get(game_type, {})
+        game_name = game_config.get('name', game_type.replace('_', ' ').title())
+
+        # Header
+        draw.rectangle([(0, 0), (self.width, config.HEADER_HEIGHT)], fill=0)
+        draw.text((2, 1), game_name, fill=1, font=self.font_small)
+
+        # Result
+        result = display_state.get('result')
+        if result == 'win':
+            result_msg = "You Win!"
+            emoji = ":D"
+        elif result == 'lose':
+            result_msg = "You Lose"
+            emoji = ":("
+        else:
+            result_msg = "Draw!"
+            emoji = ":|"
+
+        # Big result message
+        bbox = draw.textbbox((0, 0), result_msg, font=self.font_large)
+        msg_width = bbox[2] - bbox[0]
+        draw.text(((self.width - msg_width) // 2, 35), result_msg, fill=0, font=self.font_large)
+
+        # Emoji
+        bbox = draw.textbbox((0, 0), emoji, font=self.font_large)
+        emoji_width = bbox[2] - bbox[0]
+        draw.text(((self.width - emoji_width) // 2, 60), emoji, fill=0, font=self.font_large)
+
+        # Opponent name
+        vs_msg = f"vs {opponent_name}"
+        bbox = draw.textbbox((0, 0), vs_msg, font=self.font_small)
+        vs_width = bbox[2] - bbox[0]
+        draw.text(((self.width - vs_width) // 2, 85), vs_msg, fill=0, font=self.font_small)
+
+        # Hint
+        hint = "Press to continue"
+        bbox = draw.textbbox((0, 0), hint, font=self.font_small)
+        hint_width = bbox[2] - bbox[0]
+        draw.text(((self.width - hint_width) // 2, self.height - 15), hint, fill=0, font=self.font_small)
+
+        return image
+
+    def draw_game_invite(self, from_name: str, game_type: str) -> Image.Image:
+        """
+        Draw game invite confirmation screen
+
+        Args:
+            from_name: Name of person sending invite
+            game_type: Type of game being proposed
+
+        Returns:
+            PIL Image of invite screen
+        """
+        image, draw = self._create_canvas()
+
+        # Get game display name
+        game_config = config.GAME_TYPES.get(game_type, {})
+        game_name = game_config.get('name', game_type.replace('_', ' ').title())
+
+        # Header
+        draw.rectangle([(0, 0), (self.width, config.HEADER_HEIGHT)], fill=0)
+        draw.text((2, 1), "Game Invite!", fill=1, font=self.font_small)
+
+        # Message
+        msg1 = f"{from_name} wants to play"
+        msg2 = game_name
+
+        bbox = draw.textbbox((0, 0), msg1, font=self.font_medium)
+        draw.text(((self.width - bbox[2] + bbox[0]) // 2, 30), msg1, fill=0, font=self.font_medium)
+
+        bbox = draw.textbbox((0, 0), msg2, font=self.font_medium)
+        draw.text(((self.width - bbox[2] + bbox[0]) // 2, 50), msg2, fill=0, font=self.font_medium)
+
+        # Accept/Decline buttons
+        accept_text = "[Yes]"
+        decline_text = "[No]"
+
+        # Draw both options
+        draw.text((60, 80), accept_text, fill=0, font=self.font_medium)
+        draw.text((150, 80), decline_text, fill=0, font=self.font_medium)
+
+        # Hint
+        draw.text((5, self.height - 15), "Turn to select, Press to confirm", fill=0, font=self.font_small)
+
+        return image
+
     def _draw_header(self, draw: ImageDraw.Draw, pet_name: str, age: str,
                      wifi_connected: bool = False, online_friends: int = 0,
                      unread_messages: int = 0):

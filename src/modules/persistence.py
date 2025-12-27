@@ -198,6 +198,28 @@ class DatabaseManager:
             )
         ''')
 
+        # Game Sessions Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS game_sessions (
+                session_id TEXT PRIMARY KEY,
+                game_type TEXT NOT NULL,
+                opponent_device TEXT NOT NULL,
+                opponent_pet_name TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                is_my_turn INTEGER DEFAULT 0,
+                is_initiator INTEGER DEFAULT 0,
+                my_role TEXT,
+                opponent_role TEXT,
+                game_state TEXT,
+                started_at REAL,
+                last_move_at REAL,
+                completed_at REAL,
+                expires_at REAL,
+                created_at REAL NOT NULL DEFAULT (julianday('now')),
+                FOREIGN KEY (opponent_device) REFERENCES friends(device_name)
+            )
+        ''')
+
         # Create indexes for performance
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_pet_active
@@ -227,6 +249,11 @@ class DatabaseManager:
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_message_queue_status
             ON message_queue(status, next_retry)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_game_sessions_status
+            ON game_sessions(status, opponent_device)
         ''')
 
         self.connection.commit()

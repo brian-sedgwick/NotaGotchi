@@ -73,6 +73,14 @@ class ScreenManager:
         self.keyboard_callback_data = {}    # Extra data for callbacks (e.g., friend_id)
         self.keyboard_title = ""            # Title shown above text
 
+        # Game state
+        self.game_menu_index = 0            # Index in game selection menu
+        self.game_choice_index = 0          # Index in RPS choice (rock/paper/scissors)
+        self.current_game_session = None    # Active game session
+        self.pending_game_invite = None     # Incoming invite being shown
+        self.game_opponent_name = None      # Name of opponent for display
+        self.game_opponent_device = None    # Device name of opponent
+
         # Action callbacks
         self.action_callbacks: Dict[str, Callable] = {}
 
@@ -127,6 +135,14 @@ class ScreenManager:
         elif screen_state == config.ScreenState.KEYBOARD:
             # Only reset index, preserve buffer and mode (set by start_keyboard)
             self.keyboard_selected_index = 0
+        elif screen_state == config.ScreenState.GAME_SELECT:
+            self.game_menu_index = 0
+        elif screen_state == config.ScreenState.GAME_WAITING:
+            pass  # Keep game state as-is
+        elif screen_state == config.ScreenState.GAME_ACTIVE:
+            self.game_choice_index = 0
+        elif screen_state == config.ScreenState.GAME_RESULT:
+            pass  # Keep game state for result display
 
     def go_back(self):
         """Return to previous screen"""
@@ -214,6 +230,14 @@ class ScreenManager:
             return self._handle_friend_options_input(event)
         elif self.current_screen == config.ScreenState.KEYBOARD:
             return self._handle_keyboard_input(event)
+        elif self.current_screen == config.ScreenState.GAME_SELECT:
+            return self._handle_game_select_input(event)
+        elif self.current_screen == config.ScreenState.GAME_WAITING:
+            return self._handle_game_waiting_input(event)
+        elif self.current_screen == config.ScreenState.GAME_ACTIVE:
+            return self._handle_game_active_input(event)
+        elif self.current_screen == config.ScreenState.GAME_RESULT:
+            return self._handle_game_result_input(event)
 
         return None
 
@@ -710,6 +734,11 @@ class ScreenManager:
             elif action == 'message_friend':
                 # Send message to friend - go to message type menu
                 self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
+            elif action == 'play_game':
+                # Play game with friend - go to game select menu
+                self.game_opponent_device = self.selected_friend_for_options
+                self.game_opponent_name = self.selected_friend_name
+                self.set_screen(config.ScreenState.GAME_SELECT)
             else:
                 return action  # remove_friend - return for handler to execute
 
@@ -808,6 +837,93 @@ class ScreenManager:
         elif self.keyboard_mode == "compose_message":
             # For compose, return to message type menu
             self.set_screen(config.ScreenState.MESSAGE_TYPE_MENU)
+
+        return None
+
+    def _handle_game_select_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on game selection screen"""
+        menu_items = config.GAME_MENU
+
+        if event.type == InputEvent.TYPE_ROTATE_CW:
+            self.game_menu_index = (self.game_menu_index + 1) % len(menu_items)
+
+        elif event.type == InputEvent.TYPE_ROTATE_CCW:
+            self.game_menu_index = (self.game_menu_index - 1) % len(menu_items)
+
+        elif event.type == InputEvent.TYPE_BUTTON_PRESS:
+            selected_item = menu_items[self.game_menu_index]
+            action = selected_item['action']
+
+            if action == 'back':
+                self.set_screen(config.ScreenState.FRIEND_OPTIONS)
+            else:
+                # Extract game type from action (e.g., "game_rock_paper_scissors" -> "rock_paper_scissors")
+                game_type = action.replace('game_', '')
+                return ("send_game_invite", {
+                    "game_type": game_type,
+                    "opponent_device": self.game_opponent_device,
+                    "opponent_name": self.game_opponent_name
+                })
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            self.set_screen(config.ScreenState.FRIEND_OPTIONS)
+
+        return None
+
+    def _handle_game_waiting_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on game waiting screen (waiting for opponent to accept)"""
+        if event.type == InputEvent.TYPE_BUTTON_PRESS:
+            # Cancel the pending invite
+            return "cancel_game_invite"
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            # Also cancel on long press
+            return "cancel_game_invite"
+
+        return None
+
+    def _handle_game_active_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on active game screen"""
+        # For Rock-Paper-Scissors, navigate between choices
+        if not self.current_game_session:
+            return None
+
+        game = getattr(self.current_game_session, 'game', None)
+        if not game:
+            return None
+
+        choices = ['rock', 'paper', 'scissors']
+
+        if event.type == InputEvent.TYPE_ROTATE_CW:
+            self.game_choice_index = (self.game_choice_index + 1) % len(choices)
+
+        elif event.type == InputEvent.TYPE_ROTATE_CCW:
+            self.game_choice_index = (self.game_choice_index - 1) % len(choices)
+
+        elif event.type == InputEvent.TYPE_BUTTON_PRESS:
+            # Make the selected choice
+            selected_choice = choices[self.game_choice_index]
+            return ("make_game_move", {
+                "move_data": {"choice": selected_choice}
+            })
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            # Forfeit the game
+            return "forfeit_game"
+
+        return None
+
+    def _handle_game_result_input(self, event: InputEvent) -> Optional[str]:
+        """Handle input on game result screen"""
+        if event.type == InputEvent.TYPE_BUTTON_PRESS:
+            # Return to friends list
+            self.current_game_session = None
+            self.set_screen(config.ScreenState.FRIENDS_LIST)
+
+        elif event.type == InputEvent.TYPE_BUTTON_LONG_PRESS:
+            # Also return on long press
+            self.current_game_session = None
+            self.set_screen(config.ScreenState.FRIENDS_LIST)
 
         return None
 
@@ -1084,3 +1200,86 @@ class ScreenManager:
     def set_pending_requests(self, requests: list):
         """Update the cached pending requests"""
         self.pending_requests = requests
+
+    # =========================================================================
+    # GAME SCREEN METHODS
+    # =========================================================================
+
+    def is_game_select(self) -> bool:
+        """Check if on game select screen"""
+        return self.current_screen == config.ScreenState.GAME_SELECT
+
+    def is_game_waiting(self) -> bool:
+        """Check if on game waiting screen"""
+        return self.current_screen == config.ScreenState.GAME_WAITING
+
+    def is_game_active(self) -> bool:
+        """Check if on game active screen"""
+        return self.current_screen == config.ScreenState.GAME_ACTIVE
+
+    def is_game_result(self) -> bool:
+        """Check if on game result screen"""
+        return self.current_screen == config.ScreenState.GAME_RESULT
+
+    def get_game_select_state(self) -> Dict[str, Any]:
+        """Get current game select state for rendering"""
+        return {
+            'items': config.GAME_MENU,
+            'selected_index': self.game_menu_index,
+            'opponent_name': self.game_opponent_name
+        }
+
+    def get_game_waiting_state(self) -> Dict[str, Any]:
+        """Get current game waiting state for rendering"""
+        session = self.current_game_session
+        return {
+            'opponent_name': self.game_opponent_name,
+            'game_type': session.game_type if session else None,
+            'session': session
+        }
+
+    def get_game_active_state(self) -> Dict[str, Any]:
+        """Get current game active state for rendering"""
+        session = self.current_game_session
+        game = session.game if session else None
+        display_state = game.get_display_state() if game else {}
+
+        return {
+            'opponent_name': self.game_opponent_name,
+            'session': session,
+            'game': game,
+            'display_state': display_state,
+            'choice_index': self.game_choice_index
+        }
+
+    def get_game_result_state(self) -> Dict[str, Any]:
+        """Get current game result state for rendering"""
+        session = self.current_game_session
+        game = session.game if session else None
+        display_state = game.get_display_state() if game else {}
+
+        return {
+            'opponent_name': self.game_opponent_name,
+            'session': session,
+            'game': game,
+            'display_state': display_state
+        }
+
+    def set_game_session(self, session):
+        """Set the current game session"""
+        self.current_game_session = session
+        if session:
+            self.game_opponent_name = session.opponent_pet_name
+            self.game_opponent_device = session.opponent_device
+
+    def set_pending_game_invite(self, invite: Dict[str, Any]):
+        """Set a pending game invite for display"""
+        self.pending_game_invite = invite
+
+    def get_pending_game_invite(self) -> Optional[Dict[str, Any]]:
+        """Get the current pending game invite"""
+        return self.pending_game_invite
+
+    def clear_pending_game_invite(self):
+        """Clear the pending game invite"""
+        self.pending_game_invite = None
